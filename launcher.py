@@ -8,7 +8,20 @@ import webbrowser
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent
+def get_repo_root() -> Path:
+    if getattr(sys, "frozen", False):
+        candidate = Path(sys.executable).resolve()
+    else:
+        candidate = Path(__file__).resolve()
+
+    for directory in [candidate.parent] + list(candidate.parents):
+        if (directory / "backend").is_dir() and (directory / "frontend").is_dir():
+            return directory
+
+    return candidate.parent
+
+
+ROOT = get_repo_root()
 BACKEND_DIR = ROOT / "backend"
 FRONTEND_DIR = ROOT / "frontend"
 ENV_PATH = ROOT / ".env"
