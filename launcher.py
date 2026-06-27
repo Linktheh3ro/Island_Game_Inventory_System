@@ -2,10 +2,16 @@ import os
 import shutil
 import subprocess
 import sys
-import textwrap
 import time
+import urllib.request
 import webbrowser
+import zipfile
 from pathlib import Path
+
+
+NODE_VERSION = "v20.24.1"
+NODE_DIST_NAME = f"node-{NODE_VERSION}-win-x64"
+NODE_DOWNLOAD_URL = f"https://nodejs.org/dist/{NODE_VERSION}/{NODE_DIST_NAME}.zip"
 
 
 def get_repo_root() -> Path:
@@ -87,12 +93,88 @@ def get_python_command() -> list[str]:
     return [python_exe]
 
 
+def get_local_node_package_manager() -> list[str]:
+    if os.name != "nt":
+        return []
+
+    node_root = ROOT / ".nodejs" / NODE_VERSION
+    npm_cmd = node_root / "npm.cmd"
+    if npm_cmd.exists():
+        return [str(npm_cmd)]
+
+    nested_root = node_root / NODE_DIST_NAME
+    if nested_root.exists():
+        nested_npm_cmd = nested_root / "npm.cmd"
+        if nested_npm_cmd.exists():
+            return [str(nested_npm_cmd)]
+
+    return []
+
+
+def download_node_windows() -> list[str]:
+    if os.name != "nt":
+        return []
+
+    node_root = ROOT / ".nodejs" / NODE_VERSION
+    npm_cmd = node_root / "npm.cmd"
+    if npm_cmd.exists():
+        return [str(npm_cmd)]
+
+    node_root.mkdir(parents=True, exist_ok=True)
+    zip_path = node_root / f"{NODE_DIST_NAME}.zip"
+
+    print(f"Downloading Node.js {NODE_VERSION} for Windows...")
+    try:
+        with urllib.request.urlopen(NODE_DOWNLOAD_URL) as response, open(zip_path, "wb") as out_file:
+            shutil.copyfileobj(response, out_file)
+    except Exception as exc:
+        raise RuntimeError(
+            "Failed to download Node.js. Please check your network connection and try again."
+        ) from exc
+
+    print("Extracting Node.js...")
+    with zipfile.ZipFile(zip_path, "r") as archive:
+        archive.extractall(node_root)
+
+    try:
+        zip_path.unlink()
+    except OSError:
+        pass
+
+    if not npm_cmd.exists():
+        nested_root = node_root / NODE_DIST_NAME
+        if nested_root.exists():
+            for child in nested_root.iterdir():
+                destination = node_root / child.name
+                if destination.exists():
+                    if destination.is_dir():
+                        shutil.rmtree(destination)
+                    else:
+                        destination.unlink()
+                shutil.move(str(child), str(destination))
+            try:
+                nested_root.rmdir()
+            except OSError:
+                pass
+
+    if not npm_cmd.exists():
+        raise RuntimeError("Node.js download completed but npm.cmd was not found in the extracted archive.")
+
+    return [str(npm_cmd)]
+
+
 def find_frontend_package_manager() -> list[str]:
     if os.name == "nt":
         for candidate in ["yarn.cmd", "yarn", "npm.cmd", "npm"]:
             resolved = shutil.which(candidate)
             if resolved:
                 return [resolved]
+
+        local_manager = get_local_node_package_manager()
+        if local_manager:
+            return local_manager
+
+        return download_node_windows()
     else:
         for candidate in ["yarn", "npm"]:
             resolved = shutil.which(candidate)
@@ -114,8 +196,6 @@ def ensure_frontend_dependencies() -> list[str]:
         else:
             subprocess.run(package_manager + ["install"], cwd=FRONTEND_DIR, check=True)
 
-    if package_manager[0].endswith("yarn") or package_manager[0].endswith("yarn.cmd"):
-        return package_manager
     return package_manager
 
 

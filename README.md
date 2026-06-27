@@ -25,6 +25,7 @@ The launcher will:
 - create a `.env` file automatically if needed
 - install backend dependencies into `backend\.venv`
 - install frontend dependencies into `frontend\node_modules`
+- [Windows only] download a portable Node.js runtime automatically if Node/npm is missing
 - start the backend at `http://localhost:8000`
 - open the frontend at `http://localhost:3000`
 
