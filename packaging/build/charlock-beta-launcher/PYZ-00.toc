@@ -1,4 +1,4 @@
-('C:\\Users\\hayde\\OneDrive\\Documents\\_charLock_Neo\\build\\charlock-beta-launcher\\PYZ-00.pyz',
+('C:\\Users\\hayde\\OneDrive\\Documents\\_charLock_Neo\\packaging\\build\\charlock-beta-launcher\\PYZ-00.pyz',
  [('__future__',
    'C:\\Users\\hayde\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\__future__.py',
    'PYMODULE'),
