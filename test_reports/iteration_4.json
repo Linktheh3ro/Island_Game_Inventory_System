@@ -1,0 +1,21 @@
+{
+  "summary": "Iteration 4 frontend tests for STACK VALUE derived row, avatar object-contain & sizing, folder tile auto-stretch, folder double-click entry, and regressions. All 16 assertions passed.",
+  "tested_scope": ["frontend", "integration"],
+  "passed": [
+    "STACK VALUE row visible with text '150 g (50g × 3)' when value field active + parseable + stack>1",
+    "STACK VALUE hidden when stack=1",
+    "STACK VALUE hidden when value is non-numeric ('priceless')",
+    "STACK VALUE hidden when Value field removed from item",
+    "Inventory character avatar uses object-contain class and stays within 180x180 box (measured ~86x86)",
+    "Roster character card avatar uses max-w-full max-h-full object-contain (capped 80x80 container)",
+    "Folder tile auto-stretches: width grew from 260px (short name) to 535px after renaming to 'The Royal Spymasters Personal Vault'; input width ~407px fits inside tile",
+    "Multiple folders in folder-row flex-wrap container; 'DOUBLE-CLICK A FOLDER TO ENTER' hint visible",
+    "Double-click on folder body (folder icon) descends into folder; breadcrumb shows folder name",
+    "Regressions OK: new-item-btn, search-input, sort-name-asc, sort-manual, tier-chip-Expert, open-settings-btn → add-category-btn visible"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "N/A (pure client app)", "frontend": "100% (16/16)"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

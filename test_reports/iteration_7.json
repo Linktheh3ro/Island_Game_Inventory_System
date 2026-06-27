@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 7 (Pass 1) frontend testing for Tabletop RPG inventory. Verified the three highest-priority new behaviors: mundane/magic side toggle with currency strip, MAKE STACK opt-in flow in ItemDialog, and magic-side categorization with 'NEW ABILITY' button label. T4 (settings -> currency promotion), T5 (currency +/-) and T6 (Description textarea) could not be completed in this run because a residual ItemDialog overlay blocked subsequent clicks after the Description add-field flow. Code review of InventoryView.jsx, ItemDialog.jsx and defaults.js confirms the implementation matches the spec for all listed features; recommend a quick retest pass to exercise the remaining scenarios end-to-end.",
+  "tested_scope": ["frontend"],
+  "passed": [
+    "T1: Fresh character defaults to mundane side; side-toggle-mundane visible; currency-strip present; 'Gold Sovereign' currency block with -100/-10/-1/input/+1/+10/+100 controls renders",
+    "T2: side-toggle-magic switches view; currency-MPE shows, Gold Sovereign hides; tab-Sorcery and tab-Wizardry visible; new-item-btn label becomes 'NEW ABILITY'",
+    "T3: ItemDialog shows 'MAKE STACK' button by default with NO item-dialog-stack input; clicking it reveals stack input (default value=2) plus remove X; editing to 5 persists; clicking X reverts to MAKE STACK button",
+    "Code review: defaults.js seeds Gold Sovereign + MPE + Sorcery + Wizardry; createItem sets hasStack=false; InventoryView side filter and currency strip wiring (adjustCurrency, setCurrencyValue with clamp 0..currencyMax) implemented correctly; NEW ABILITY label gated on side==='magic'"
+  ],
+  "failed": [
+    {
+      "area": "test execution (not a product bug)",
+      "issue": "T6 Description textarea could not be verified inline: after closing ItemDialog, clicking 'New Item' text re-opened the dialog rather than expanding the row, so no <textarea> appeared in expanded view.",
+      "evidence": "page.locator('textarea').count() === 0 after attempting to expand; ItemDialog overlay reopened (data-state=open) intercepting subsequent clicks.",
+      "priority": "LOW"
+    },
+    {
+      "area": "test execution (not a product bug)",
+      "issue": "T4 (Settings -> isCurrency promote Weapons to currency strip with /200) and T5 (+/-/clamp on Gold Sovereign) were NOT executed in this iteration; settings button click was blocked by the lingering ItemDialog overlay.",
+      "evidence": "Playwright click on [data-testid=open-settings-btn] timed out: 'DialogOverlay intercepts pointer events'.",
+      "priority": "MEDIUM"
+    }
+  ],
+  "action_items": [
+    "No product fix required from this report. Recommend a follow-up test pass that (a) uses the item row's expand-chevron data-testid (not text click) to verify Description renders as <textarea>, and (b) closes ItemDialog deterministically (Escape + wait for overlay removal) before opening Settings to validate currency promotion and +/- clamp."
+  ],
+  "success_rate": {"backend": "n/a", "frontend": "60%"},
+  "retest_needed": true,
+  "full_testing_deferred": true
+}

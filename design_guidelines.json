@@ -1,0 +1,136 @@
+{
+  "theme": "dark",
+  "archetype": "5",
+  "archetype_name": "Luxury / Gothic Industrial",
+  "global_styles": {
+    "background_color": "#0A0A0C",
+    "text_color": "#E2E4E9",
+    "font_smoothing": "antialiased"
+  },
+  "typography": {
+    "imports": [
+      "@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Marcellus&family=Cormorant+Garamond:wght@400;600;700&family=Oswald:wght@300;400&display=swap');"
+    ],
+    "fonts": {
+      "character_names": {
+        "family": "Cinzel, serif",
+        "weight": "700",
+        "description": "Elegant serif display font for main character names.",
+        "tailwind_class": "font-['Cinzel',_serif]"
+      },
+      "category_names": {
+        "family": "Marcellus, serif",
+        "weight": "400",
+        "description": "Semi-display serif for tabs and categories.",
+        "tailwind_class": "font-['Marcellus',_serif]"
+      },
+      "item_names": {
+        "family": "Cormorant Garamond, serif",
+        "weight": "600",
+        "description": "Classic serif for item names, gives a ledger/book feel.",
+        "tailwind_class": "font-['Cormorant_Garamond',_serif]"
+      },
+      "metadata_and_numbers": {
+        "family": "Oswald, sans-serif",
+        "weight": "300",
+        "description": "Condensed industrial mono-like font for quantities, stats, and small dropdown titles.",
+        "tailwind_class": "font-['Oswald',_sans-serif]"
+      }
+    }
+  },
+  "colors": {
+    "backgrounds": {
+      "app_bg": "#050505",
+      "panel_bg": "#0A0A0C",
+      "card_bg": "#121214",
+      "hover_bg": "#1A1A1D",
+      "input_bg": "#0D0D0F"
+    },
+    "text": {
+      "primary": "#E2E4E9",
+      "secondary": "#B0B5B9",
+      "muted": "#686D76"
+    },
+    "accents": {
+      "silver": "#B0B5B9",
+      "pewter": "#8A9196",
+      "obsidian": "#0A0A0C",
+      "border": "#2A2A2E"
+    },
+    "quality_tiers": {
+      "Novice": {
+        "color": "#5A5A5C",
+        "description": "deep grey text"
+      },
+      "Intermediate": {
+        "color": "#4B5320",
+        "description": "olive green"
+      },
+      "Journeyman": {
+        "color": "#003b6f",
+        "description": "deep ocean blue"
+      },
+      "Adept": {
+        "color": "#70003c",
+        "description": "deep magenta"
+      },
+      "Expert": {
+        "color": "#b8860b",
+        "description": "deep gold"
+      },
+      "Master": {
+        "color": "#800000",
+        "description": "deep crimson"
+      },
+      "Grandmaster": {
+        "color": "#FFFFFF",
+        "tailwind_classes": "text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.8)]",
+        "description": "white shining text with glow effect"
+      }
+    }
+  },
+  "layout": {
+    "general": "Minimalist tabular layout, SkyUI style. Tab navigation along the top. Large content area below. Generous padding.",
+    "top_bar": "Contains the copy-paste import/export tool and version info. Sticky.",
+    "header": "Profile picture slot (square) top left. Character name next to it in Cinzel font.",
+    "tabs": "Left to right category tabs (Weapons, Armor, Consumables, etc.). Use Marcellus font. Underline active state.",
+    "left_sidebar_or_action_area": "Large 'New Item' button on the left side, metallic brushed border.",
+    "inventory_list": "Tabular or row-based layout. Items stack vertically. Hovering reveals actions.",
+    "item_row": {
+      "structure": "Quantity (stack multiplier like '2x'), Item Name, Price (indeterminate tooltip by default). Small gear icon top right of row for settings.",
+      "expansion": "Clicking an item slides down a dropdown below it, pushing siblings down. This dropdown contains editable info fields."
+    }
+  },
+  "components": {
+    "buttons": "Minimalist. Charcoal backgrounds with 1px pewter border. Hover effect: background lightens slightly, border turns silver. No heavy rounding, max rounded-sm.",
+    "inputs": "Dark background (#0D0D0F), 1px dark border (#2A2A2E). Focus state: pewter border. Oswald font for numeric inputs.",
+    "dropdown_accordion": "Framer motion for height sliding. Darker background (#050505) inside the dropdown to differentiate from the row (#121214).",
+    "icons": "lucide-react. Size 16px to 20px. Stroke width 1.5. Colors: pewter or silver.",
+    "context_menu": "Right-click custom menu. Very dark background (#050505), sharp corners, silver text hover states."
+  },
+  "interactions_and_motion": {
+    "drag_and_drop": "Use dnd-kit or react-beautiful-dnd. Items can be dragged between categories (tabs) and reordered. Visual feedback: slight scale up and drop shadow while dragging.",
+    "accordion": "Smooth height transition when expanding item details.",
+    "hover_states": "Rows should subtly change background color on hover. Tooltips appear after 300ms delay."
+  },
+  "technical_instructions": {
+    "stack": "React, Tailwind CSS, LocalStorage (offline-first). No backend.",
+    "autosave": "Implement a hook to save to localStorage every 2 minutes and on window beforeunload event.",
+    "testing": "All interactive and key informational elements MUST include a data-testid attribute.",
+    "custom_css": "Inject the Google Fonts import in index.css. Setup Tailwind config to extend the font families."
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1540304801084-0944beb20de7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NjZ8MHwxfHNlYXJjaHwxfHxnb3RoaWMlMjBzaWxob3VldHRlJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzgyNDM2NDg0fDA&ixlib=rb-4.1.0&q=85",
+        "description": "Default avatar for character profile picture.",
+        "category": "avatar"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1578662996442-48f60103fc96?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHxkYXJrJTIwbWV0YWwlMjB0ZXh0dXJlfGVufDB8fHx8MTc4MjQzNjQ4NHww&ixlib=rb-4.1.0&q=85",
+        "description": "Dark metal texture, can be used subtly as a background overlay with very low opacity (e.g., 5%) if needed for the industrial vibe.",
+        "category": "background_texture"
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "summary": "Iteration 6 frontend tests: folder rename via context menu, span-vs-input render modes, back-arrow returning to parent folder, and breadcrumb-up disabled-at-root behavior all verified end-to-end via Playwright on public URL.",
+  "tested_scope": ["frontend", "integration"],
+  "passed": [
+    "Breadcrumb-up button renders at root with disabled=True and class contains opacity-30 (cursor-not-allowed)",
+    "After add-folder-btn, folder name renders as <span> (not <input>) with Tailwind 'select-text' class",
+    "Right-click on folder card opens context menu exposing data-testid='ctx-rename-folder-New Folder'",
+    "Clicking Rename swaps span -> <input> (autoFocused) at same testid 'folder-name-New Folder'; typing 'PartyA' + Enter exits rename mode and span shows 'PartyA'",
+    "Inside PartyA folder, breadcrumb-up is enabled (disabled=False)",
+    "After creating a character inside PartyA, clicking it opens inventory; back-to-roster returns to roster with breadcrumb='ROOT > PartyA' (PartyA preserved, NOT reset to root)",
+    "From inside PartyA, clicking breadcrumb-up navigates back to ROOT"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "n/a (frontend-only app)", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Drag-drop path for moving Corvo into PartyA was not exercised; instead the back-arrow flow was validated by creating a character directly inside the renamed PartyA folder, which exercises the same App.js initialFolderId={activeCharacter.parentId} -> CharacterSelect folderPath walk. Regression flows (stack +/-, quality dialog, drag-reorder, paste-bar) were NOT re-tested in this latency-sensitive pass — defer to full QA."
+}

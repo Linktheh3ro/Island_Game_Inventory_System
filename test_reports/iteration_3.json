@@ -1,0 +1,17 @@
+{
+  "summary": "Verified all 3 reported bug fixes in iteration 3 (Tabletop RPG inventory app, pure client-side). BUG1 (dynamic per-category column headers), BUG2 (ItemDialog auto-save with Close-only footer), BUG3 (manual drag-reorder in EVERYTHING tab), and BUG3b (drag-reorder in per-category list view) all pass.",
+  "tested_scope": ["frontend"],
+  "passed": [
+    "BUG1: Weapons tab header initially shows only 'NAME' (no Description/Value/Weight columns) when item has no info fields filled. After adding Value=100g to the item, header becomes 'NAME | VALUE'. fieldColumns useMemo works as designed.",
+    "BUG2: ItemDialog shows 'CHANGES SAVE AUTOMATICALLY' label and only an item-dialog-close button. Editing name to 'Auto Saved Sword', stack to 7, and tier all reflect immediately in inventory after closing. Re-opening the dialog confirms persistence (name='Auto Saved Sword', stack='7').",
+    "BUG3: Drag-reorder within EVERYTHING tab works. Dragging Gamma Dagger onto TOP of Alpha Sword produced expected order (Beta, Gamma, Alpha, Auto Saved) — Gamma now sits immediately before Alpha. sort-manual button became active (class contains bg-[#16161a]).",
+    "BUG3b: Drag-reorder in Weapons (list view) moved the last row to the top. Switching back to EVERYTHING showed the new order preserved (cross-view persistence confirmed).",
+    "Auto-save propagates without explicit Save click; e.stopPropagation in ItemRow.onDrop prevents section's dropOnCategory from clobbering reorder."
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "N/A (no backend)", "frontend": "100%"},
+  "retest_needed": false,
+  "notes": "Initial order after creating Alpha/Beta/Gamma was Gamma,Beta,Alpha (newest-first insertion via addNewItem). Per-spec end state 'Gamma,Alpha,Beta' was based on an Alpha,Beta,Gamma starting assumption; actual reorder behavior is mathematically correct for the dragged-onto-top semantics. Regression checks for paste-bar/folder/tier-filter/global-field/settings-delete were NOT re-executed this iteration — those were verified in iteration_2; focused this pass on the 3 reported bugs as requested.",
+  "full_testing_deferred": true
+}

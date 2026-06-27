@@ -1,0 +1,165 @@
+@import './assets/fonts/fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 240 5% 4%;
+        --foreground: 220 9% 90%;
+        --card: 240 6% 7%;
+        --card-foreground: 220 9% 90%;
+        --popover: 240 6% 3%;
+        --popover-foreground: 220 9% 90%;
+        --primary: 220 7% 70%;
+        --primary-foreground: 240 6% 5%;
+        --secondary: 240 5% 12%;
+        --secondary-foreground: 220 9% 90%;
+        --muted: 240 5% 10%;
+        --muted-foreground: 220 5% 55%;
+        --accent: 240 5% 14%;
+        --accent-foreground: 220 9% 90%;
+        --destructive: 0 60% 35%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 240 5% 16%;
+        --input: 240 5% 12%;
+        --ring: 220 6% 60%;
+        --radius: 0.125rem;
+    }
+}
+
+* {
+    border-color: hsl(var(--border));
+}
+
+html, body, #root {
+    background: #050507;
+    color: #E2E4E9;
+    margin: 0;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+    font-family: 'Cormorant Garamond', serif;
+    background:
+      radial-gradient(circle at 12% 8%, rgba(160, 170, 180, 0.04), transparent 45%),
+      radial-gradient(circle at 88% 92%, rgba(160, 170, 180, 0.035), transparent 50%),
+      #050507;
+    background-attachment: fixed;
+}
+
+.font-display { font-family: 'Cinzel', serif; letter-spacing: 0.08em; }
+.font-tab { font-family: 'Marcellus', serif; letter-spacing: 0.18em; }
+.font-item { font-family: 'Cormorant Garamond', serif; }
+.font-meta { font-family: 'Oswald', sans-serif; letter-spacing: 0.12em; }
+
+.silver-text {
+  color: #C8CCD2;
+  text-shadow: 0 0 1px rgba(200, 204, 210, 0.3);
+}
+
+.silver-border {
+  border: 1px solid #2A2A2E;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+}
+
+.silver-divider {
+  background: linear-gradient(90deg, transparent, #3a3a40 20%, #6a6c70 50%, #3a3a40 80%, transparent);
+  height: 1px;
+}
+
+.engraved {
+  text-shadow: 0 1px 0 rgba(0,0,0,0.9), 0 -1px 0 rgba(255,255,255,0.05);
+}
+
+.glow-grandmaster {
+  text-shadow: 0 0 6px rgba(255,255,255,0.95), 0 0 14px rgba(255,255,255,0.55), 0 0 24px rgba(220,220,255,0.35);
+}
+
+.metal-bg {
+  background:
+    linear-gradient(180deg, #121215 0%, #0c0c10 100%),
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 3px);
+}
+
+.row-hover:hover {
+  background: linear-gradient(90deg, rgba(180,185,195,0.025), rgba(180,185,195,0.06), rgba(180,185,195,0.025));
+}
+
+.gothic-corner {
+  position: relative;
+}
+.gothic-corner::before,
+.gothic-corner::after {
+  content: '';
+  position: absolute;
+  width: 10px; height: 10px;
+  border-color: #6a6c70;
+}
+.gothic-corner::before { top: -1px; left: -1px; border-top: 1px solid; border-left: 1px solid; }
+.gothic-corner::after { bottom: -1px; right: -1px; border-bottom: 1px solid; border-right: 1px solid; }
+
+::selection { background: #2a3340; color: #E2E4E9; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #0a0a0c; }
+::-webkit-scrollbar-thumb { background: #2a2a2e; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a40; }
+
+.fade-in {
+  animation: fadeIn 0.35s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.slide-down {
+  animation: slideDown 0.22s ease-out;
+  overflow: hidden;
+}
+@keyframes slideDown {
+  from { opacity: 0; max-height: 0; }
+  to { opacity: 1; max-height: 1000px; }
+}
+
+.tab-active {
+  position: relative;
+  color: #E2E4E9 !important;
+}
+.tab-active::after {
+  content: '';
+  position: absolute;
+  left: 12%; right: 12%; bottom: -2px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #C8CCD2 50%, transparent);
+}
+
+.drag-over {
+  background: rgba(200,204,210,0.08) !important;
+  outline: 1px dashed #6a6c70;
+  outline-offset: -2px;
+}
+
+input, textarea, select {
+  background: #0D0D0F;
+}
+
+button:focus-visible, input:focus-visible, [role="tab"]:focus-visible {
+  outline: 1px solid #8A9196;
+  outline-offset: 1px;
+}
+
+/* Hide native number spinner arrows; themed +/- buttons are used instead */
+.no-spin::-webkit-outer-spin-button,
+.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spin {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

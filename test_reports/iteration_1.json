@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend-only smoke test of tabletop RPG inventory app at https://spell-ledger.preview.emergentagent.com. Exercised roster, character creation, inventory view, PasteBar copy/import (TTI1 share code), ItemDialog new item, slide-down dropdown with stack +/- controls, fuzzy search (with typo), sort buttons, SettingsDialog category creation, localStorage persistence after reload, and grandmaster glow class wiring. All 14 checks passed.",
+  "tested_scope": ["frontend", "integration"],
+  "passed": [
+    "App root loads at public URL",
+    "Roster shows default Corvo card + new-character-input + add-character-btn",
+    "Adding 'Emily' creates a new character-card-Emily",
+    "Clicking Corvo opens inventory-view with avatar, character-name-input, open-settings-btn, back-to-roster",
+    "paste-bar-copy-btn writes TTI1: prefixed share code to clipboard (len=2805)",
+    "Pasting code into paste-bar-input + paste-bar-import-btn imports successfully",
+    "new-item-btn opens item-dialog; saving via item-dialog-save adds item-row-Folded Steel Blade",
+    "Clicking item-row toggles item-dropdown-<name> with stack-plus-1/10/100 buttons; stack adjustment works (12x)",
+    "Fuzzy search ('folded stell' typo) still matches the item",
+    "sort-name-asc and sort-stack-desc buttons clickable",
+    "open-settings-btn opens SettingsDialog; settings-tab-categories present; add-category-btn invokable",
+    "localStorage key tabletop-inventory-v1 contains created item",
+    "After page reload, item persists in inventory view",
+    "Grandmaster tier rendered in Quality Key sidebar with glow styling (visible in screenshot)"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "n/a (no backend by design)", "frontend": "100% (14/14)"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Backend testing skipped per request (pure client-side React app, no backend). Drag-drop between categories was not exercised via native HTML5 DnD; the equivalent path via item-category-select inside the dropdown is functional. Right-click context menu (ctx-duplicate/ctx-edit/ctx-delete) and tier color picker were not explicitly clicked but their data-testids are present in source. test_credentials.md not required (no auth)."
+}
