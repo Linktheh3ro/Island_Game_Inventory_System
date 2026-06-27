@@ -165,7 +165,13 @@ def download_node_windows() -> list[str]:
 
 def find_frontend_package_manager() -> list[str]:
     if os.name == "nt":
-        for candidate in ["yarn.cmd", "yarn", "npm.cmd", "npm"]:
+        if (FRONTEND_DIR / "yarn.lock").exists():
+            for candidate in ["yarn.cmd", "yarn"]:
+                resolved = shutil.which(candidate)
+                if resolved:
+                    return [resolved]
+
+        for candidate in ["npm.cmd", "npm"]:
             resolved = shutil.which(candidate)
             if resolved:
                 return [resolved]
@@ -176,7 +182,13 @@ def find_frontend_package_manager() -> list[str]:
 
         return download_node_windows()
     else:
-        for candidate in ["yarn", "npm"]:
+        if (FRONTEND_DIR / "yarn.lock").exists():
+            for candidate in ["yarn"]:
+                resolved = shutil.which(candidate)
+                if resolved:
+                    return [resolved]
+
+        for candidate in ["npm"]:
             resolved = shutil.which(candidate)
             if resolved:
                 return [resolved]
@@ -194,7 +206,7 @@ def ensure_frontend_dependencies() -> list[str]:
         if package_manager[0].endswith("yarn") or package_manager[0].endswith("yarn.cmd"):
             subprocess.run(package_manager + ["install", "--frozen-lockfile"], cwd=FRONTEND_DIR, check=True)
         else:
-            subprocess.run(package_manager + ["install"], cwd=FRONTEND_DIR, check=True)
+            subprocess.run(package_manager + ["install", "--legacy-peer-deps"], cwd=FRONTEND_DIR, check=True)
 
     return package_manager
 
