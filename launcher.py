@@ -212,20 +212,61 @@ def ensure_frontend_dependencies() -> list[str]:
 
 
 def ensure_backend_environment() -> Path:
-    python_cmd = get_python_command()
     venv_dir = BACKEND_DIR / ".venv"
-    if os.name == "nt":
-        venv_python = venv_dir / "Scripts" / "python.exe"
-    else:
-        venv_python = venv_dir / "bin" / "python"
+    # Prepare candidate python commands to try creating the venv with.
+    candidate_cmds: list[list[str]] = []
 
-    if not venv_python.exists():
-        print("Creating Python virtual environment for the backend...")
-        subprocess.run(python_cmd + ["-m", "venv", str(venv_dir)], cwd=ROOT, check=True)
+    # Primary preference from environment and discovery logic
+    primary = get_python_command()
+    if primary:
+        candidate_cmds.append(primary)
 
-    print("Installing backend dependencies...")
-    subprocess.run([str(venv_python), "-m", "pip", "install", "-r", str(BACKEND_DIR / "requirements.txt")], cwd=ROOT, check=True)
-    return venv_python
+    # Common executable names resolved by shutil.which
+    for name in ("python", "python3", "py"):
+        resolved = shutil.which(name)
+        if resolved:
+            # use the resolved full path
+            candidate_cmds.append([resolved])
+
+    # Always try the current interpreter as a last resort
+    if sys.executable:
+        candidate_cmds.append([sys.executable])
+
+    last_exc: Exception | None = None
+
+    # Attempt to create the venv using each candidate until one succeeds
+    for cmd in candidate_cmds:
+        try:
+            if os.name == "nt":
+                venv_python = venv_dir / "Scripts" / "python.exe"
+            else:
+                venv_python = venv_dir / "bin" / "python"
+
+            if not venv_python.exists():
+                print(f"Creating Python virtual environment for the backend using: {cmd[0]}")
+                subprocess.run(cmd + ["-m", "venv", str(venv_dir)], cwd=ROOT, check=True)
+
+            # If we reach here, venv exists (or was just created)
+            print("Installing backend dependencies...")
+            subprocess.run([str(venv_python), "-m", "pip", "install", "-r", str(BACKEND_DIR / "requirements.txt")], cwd=ROOT, check=True)
+            return venv_python
+        except subprocess.CalledProcessError as exc:
+            # remember the last failure and try the next candidate
+            last_exc = exc
+            print(f"Python candidate {cmd[0]} failed to create venv (exit {getattr(exc, 'returncode', '?')}). Trying next candidate...")
+        except Exception as exc:  # pragma: no cover - diagnostics
+            last_exc = exc
+            print(f"Unexpected error while creating venv with {cmd[0]}: {exc}")
+
+    # If we get here, none of the candidates worked
+    msg = (
+        "Unable to create a Python virtual environment for the backend.\n"
+        "Please ensure Python 3.8+ is installed and available on the PATH.\n"
+        "You can also set the environment variable PYTHON_EXE to the full path of a Python executable.\n"
+    )
+    if last_exc:
+        msg += f"Last error: {last_exc}\n"
+    raise RuntimeError(msg)
 
 
 def start_process(command: list[str], cwd: Path, name: str) -> subprocess.Popen:

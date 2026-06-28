@@ -34,6 +34,16 @@ The launcher will:
 - If you want to use a remote MongoDB URL instead of local Mongo, create a `.env` file in the repo root before starting.
 - The default `.env` uses `mongodb://127.0.0.1:27017/charlock`.
 
+**If Python is not installed on the tester machine**
+
+- The launcher needs Python to create the backend virtual environment. It will try common Python executables automatically, but you can point it to a specific Python interpreter by setting the `PYTHON_EXE` environment variable to the full path of a Python 3 executable before running the launcher. For example (Windows PowerShell):
+
+```
+setx PYTHON_EXE "C:\\Python311\\python.exe"
+```
+
+After setting the variable, reopen the shell (or sign out/in) so the environment variable is available to the launcher. This helps testers who have Python installed in non-standard locations or multiple Python versions.
+
 ## Packaging files and build tools
 Packaging-related build tools and outputs remain under `packaging/`:
 - `launcher.py` — Python launcher script in the repo root

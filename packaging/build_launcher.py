@@ -26,9 +26,9 @@ def main() -> None:
     ], check=True)
 
     root_exe = ROOT.parent / "charlock-beta-launcher.exe"
-    shutil.copy2(output_dir / "charlock-beta-launcher.exe", root_exe)
     print(f"Launcher built at: {output_dir / 'charlock-beta-launcher.exe'}")
-    print(f"Copied launcher to project root at: {root_exe}")
+    print("The build output remains in the packaging/dist folder to avoid duplicate executables in the repo root.")
+    print("If you want a single copy in the project root, re-enable the copy step in this script.")
 
 
 if __name__ == "__main__":
