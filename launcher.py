@@ -225,17 +225,33 @@ def ensure_backend_environment() -> Path:
     for name in ("python", "python3", "py"):
         resolved = shutil.which(name)
         if resolved:
-            # use the resolved full path
             candidate_cmds.append([resolved])
 
     # Always try the current interpreter as a last resort
     if sys.executable:
         candidate_cmds.append([sys.executable])
 
+    # Deduplicate candidates and filter to likely-Python executables only
+    seen: set[str] = set()
+    filtered: list[list[str]] = []
+    for cmd in candidate_cmds:
+        key = str(Path(cmd[0]).resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        name = Path(cmd[0]).name.lower()
+        # Accept candidates that look like Python interpreters (heuristic)
+        if ("python" in name) or (name == "py") or name.startswith("python") or name.endswith("py"):
+            filtered.append(cmd)
+        else:
+            # skip non-python executables (for example, the frozen launcher exe)
+            print(f"Skipping non-Python candidate: {cmd[0]}")
+
     last_exc: Exception | None = None
 
     # Attempt to create the venv using each candidate until one succeeds
-    for cmd in candidate_cmds:
+    for cmd in filtered:
         try:
             if os.name == "nt":
                 venv_python = venv_dir / "Scripts" / "python.exe"
