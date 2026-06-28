@@ -280,25 +280,36 @@ def ensure_frontend_dependencies() -> list[str]:
     if not package_manager:
         raise RuntimeError("Node.js was not found. Install Node.js and npm (or Yarn) before launching the app.")
 
-    def install_yarn_with_npm() -> list[str] | None:
-        print("Yarn is required for this frontend project. Installing yarn locally via npm...")
-        subprocess.run(package_manager + ["install", "--no-save", "yarn"], cwd=FRONTEND_DIR, check=True)
+    def install_yarn_globally() -> list[str] | None:
+        print("Yarn is required for this frontend project. Installing yarn globally via npm...")
+        subprocess.run(package_manager + ["install", "-g", "yarn@1.22.22"], check=True)
         yarn_cmd = shutil.which("yarn") or shutil.which("yarn.cmd")
         if yarn_cmd:
             return [yarn_cmd]
+        return None
+
+    def use_npx_yarn() -> list[str] | None:
+        print("Falling back to npx to run yarn without a global install...")
         npx_cmd = shutil.which("npx") or shutil.which("npx.cmd")
         if npx_cmd:
-            return [npx_cmd, "yarn"]
+            return [npx_cmd, "--yes", "yarn@1.22.22"]
         return None
 
     if (FRONTEND_DIR / "yarn.lock").exists() and not (shutil.which("yarn") or shutil.which("yarn.cmd")):
-        yarn_manager = install_yarn_with_npm()
-        if yarn_manager:
-            package_manager = yarn_manager
+        if package_manager[0].endswith("npm") or package_manager[0].endswith("npm.cmd"):
+            yarn_manager = None
+            try:
+                yarn_manager = install_yarn_globally()
+            except subprocess.CalledProcessError as exc:
+                print("Global yarn install failed:", exc)
+                yarn_manager = use_npx_yarn()
+
+            if yarn_manager:
+                package_manager = yarn_manager
 
     if not (FRONTEND_DIR / "node_modules").exists():
         print("Installing frontend dependencies...")
-        if package_manager[0].endswith("yarn") or package_manager[0].endswith("yarn.cmd"):
+        if package_manager[0].endswith("yarn") or package_manager[0].endswith("yarn.cmd") or (len(package_manager) > 1 and package_manager[1] == "--yes"):
             subprocess.run(package_manager + ["install", "--frozen-lockfile"], cwd=FRONTEND_DIR, check=True)
         else:
             subprocess.run(package_manager + ["install", "--legacy-peer-deps"], cwd=FRONTEND_DIR, check=True)
