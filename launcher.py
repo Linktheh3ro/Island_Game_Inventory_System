@@ -261,6 +261,12 @@ def find_frontend_package_manager() -> list[str]:
                 if resolved:
                     return [resolved]
 
+            # Yarn is expected for this frontend layout; fall back to npm but install yarn if possible.
+            for candidate in ["npm"]:
+                resolved = shutil.which(candidate)
+                if resolved:
+                    return [resolved]
+
         for candidate in ["npm"]:
             resolved = shutil.which(candidate)
             if resolved:
@@ -273,6 +279,22 @@ def ensure_frontend_dependencies() -> list[str]:
     package_manager = find_frontend_package_manager()
     if not package_manager:
         raise RuntimeError("Node.js was not found. Install Node.js and npm (or Yarn) before launching the app.")
+
+    def install_yarn_with_npm() -> list[str] | None:
+        print("Yarn is required for this frontend project. Installing yarn locally via npm...")
+        subprocess.run(package_manager + ["install", "--no-save", "yarn"], cwd=FRONTEND_DIR, check=True)
+        yarn_cmd = shutil.which("yarn") or shutil.which("yarn.cmd")
+        if yarn_cmd:
+            return [yarn_cmd]
+        npx_cmd = shutil.which("npx") or shutil.which("npx.cmd")
+        if npx_cmd:
+            return [npx_cmd, "yarn"]
+        return None
+
+    if (FRONTEND_DIR / "yarn.lock").exists() and not (shutil.which("yarn") or shutil.which("yarn.cmd")):
+        yarn_manager = install_yarn_with_npm()
+        if yarn_manager:
+            package_manager = yarn_manager
 
     if not (FRONTEND_DIR / "node_modules").exists():
         print("Installing frontend dependencies...")
