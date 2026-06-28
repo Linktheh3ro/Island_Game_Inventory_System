@@ -13,6 +13,11 @@ NODE_VERSION = "v20.24.1"
 NODE_DIST_NAME = f"node-{NODE_VERSION}-win-x64"
 NODE_DOWNLOAD_URL = f"https://nodejs.org/dist/{NODE_VERSION}/{NODE_DIST_NAME}.zip"
 
+# Python installer settings (Windows)
+PYTHON_INSTALLER_VERSION = "3.11.6"
+PYTHON_INSTALLER_NAME = f"python-{PYTHON_INSTALLER_VERSION}-amd64.exe"
+PYTHON_INSTALLER_URL = f"https://www.python.org/ftp/python/{PYTHON_INSTALLER_VERSION}/{PYTHON_INSTALLER_NAME}"
+
 
 def get_repo_root() -> Path:
     if getattr(sys, "frozen", False):
@@ -163,6 +168,74 @@ def download_node_windows() -> list[str]:
     return [str(npm_cmd)]
 
 
+def find_installed_python_paths() -> list[Path]:
+    """Return a list of candidate python.exe paths found on the system."""
+    candidates: list[Path] = []
+    # check PATH-first candidates
+    for name in ("python.exe", "python3.exe", "py.exe"):
+        resolved = shutil.which(name)
+        if resolved:
+            candidates.append(Path(resolved))
+
+    # common per-user install location
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        base = Path(local_appdata) / "Programs" / "Python"
+        if base.exists():
+            for child in sorted(base.iterdir(), reverse=True):
+                py = child / "python.exe"
+                if py.exists():
+                    candidates.append(py)
+
+    # dedupe while preserving order
+    seen = set()
+    out = []
+    for p in candidates:
+        try:
+            key = str(p.resolve())
+        except Exception:
+            key = str(p)
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
+
+
+def download_and_run_python_installer_windows() -> Path | None:
+    """Download the official Python Windows installer and run a per-user silent install.
+
+    Returns the path to the installed python.exe if successful, otherwise None.
+    """
+    if os.name != "nt":
+        return None
+
+    installer_dir = ROOT / ".python_installer"
+    installer_dir.mkdir(parents=True, exist_ok=True)
+    installer_path = installer_dir / PYTHON_INSTALLER_NAME
+
+    print(f"Downloading Python {PYTHON_INSTALLER_VERSION}...")
+    try:
+        with urllib.request.urlopen(PYTHON_INSTALLER_URL) as response, open(installer_path, "wb") as out_file:
+            shutil.copyfileobj(response, out_file)
+    except Exception as exc:
+        print("Failed to download Python installer:", exc)
+        return None
+
+    print("Running Python installer (silent, per-user)...")
+    try:
+        # Per-user silent install; Include_pip and PrependPath so pip and python are available.
+        subprocess.run([str(installer_path), "/quiet", "InstallAllUsers=0", "PrependPath=1", "Include_pip=1"], check=True)
+    except subprocess.CalledProcessError as exc:
+        print("Python installer failed:", exc)
+        return None
+
+    # Look for installed python.exe in common locations
+    for p in find_installed_python_paths():
+        return p
+
+    return None
+
+
 def find_frontend_package_manager() -> list[str]:
     if os.name == "nt":
         if (FRONTEND_DIR / "yarn.lock").exists():
@@ -274,7 +347,33 @@ def ensure_backend_environment() -> Path:
             last_exc = exc
             print(f"Unexpected error while creating venv with {cmd[0]}: {exc}")
 
-    # If we get here, none of the candidates worked
+    # If we get here, none of the candidates worked. On Windows offer to download+install Python.
+    if os.name == "nt":
+        try:
+            resp = input("No usable Python was found. Allow the launcher to download and install Python 3.11 for you? [y/N]: ")
+        except Exception:
+            resp = "n"
+
+        if str(resp).strip().lower().startswith("y"):
+            installed = download_and_run_python_installer_windows()
+            if installed:
+                print(f"Detected installed Python at: {installed}")
+                # try creating venv with this python
+                try:
+                    if os.name == "nt":
+                        venv_python = venv_dir / "Scripts" / "python.exe"
+                    else:
+                        venv_python = venv_dir / "bin" / "python"
+
+                    print(f"Creating Python virtual environment for the backend using: {installed}")
+                    subprocess.run([str(installed), "-m", "venv", str(venv_dir)], cwd=ROOT, check=True)
+                    print("Installing backend dependencies...")
+                    subprocess.run([str(venv_python), "-m", "pip", "install", "-r", str(BACKEND_DIR / "requirements.txt")], cwd=ROOT, check=True)
+                    return venv_python
+                except Exception as exc:  # pragma: no cover - retry failure
+                    last_exc = exc
+                    print("Failed to create venv with the newly installed Python:", exc)
+
     msg = (
         "Unable to create a Python virtual environment for the backend.\n"
         "Please ensure Python 3.8+ is installed and available on the PATH.\n"
