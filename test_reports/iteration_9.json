@@ -1,0 +1,21 @@
+{
+  "summary": "Verified bug fix for side-toggle filtering on EVERYTHING tab in InventoryView. Created Corvo, added mundane 'Sword' and magic 'Spark', toggled sides and confirmed correct filtering. Regression checks on paste-bar-copy-btn and currency-strip also passed.",
+  "tested_scope": ["frontend"],
+  "passed": [
+    "localStorage cleared, Corvo character created and opened",
+    "Default side=mundane and EVERYTHING tab active",
+    "Mundane 'Sword' created and visible on mundane EVERYTHING",
+    "After toggling to MAGIC, 'Sword' is hidden (bug fix verified)",
+    "Magic 'Spark' created and visible on magic EVERYTHING",
+    "Toggling to MUNDANE shows only 'Sword', hides 'Spark'",
+    "Toggling back to MAGIC shows only 'Spark', hides 'Sword'",
+    "Regression: paste-bar-copy-btn renders and clicks successfully (toast 'Copied to bar' shown)",
+    "Regression: currency-strip renders for both sides"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true,
+  "notes": "Non-blocking React warning: 'Missing Description or aria-describedby for DialogContent' (accessibility hint, not a bug)."
+}

@@ -1,0 +1,20 @@
+{
+  "summary": "Iteration 5 frontend tests: inline stack +/- buttons and optional Quality Tier feature. All 9 scenarios passed: default ADD QUALITY TIER button shows (not select); inline minus/badge/plus visible at stack=5 with correct testids; clicking + increments to 6x and does NOT toggle dropdown expansion (stopPropagation works); clicking - to stack=1 removes the entire inline group; adding quality reveals tier select + remove-X; selecting a tier persists; expanding row shows item-tier-select-<name> with remove-quality-<name> X; clicking the X removes quality (dropdown selector disappears) and dialog reverts to ADD QUALITY TIER button with tier select gone.",
+  "tested_scope": ["frontend"],
+  "passed": [
+    "Default dialog state: item-dialog-add-quality visible, no item-dialog-tier rendered",
+    "Inline stack group rendered at stack>1 with inline-stack-minus-<name>, stack-badge-<name> (5x), inline-stack-plus-<name>",
+    "Click + increments stack (5x -> 6x) and does NOT open the row dropdown (stopPropagation verified)",
+    "Decrementing stack down to 1 removes the inline stack group entirely",
+    "Clicking item-dialog-add-quality switches to tier select + item-dialog-remove-quality X",
+    "8 tier options available; selecting one persists after dialog close",
+    "Expanded row dropdown shows item-tier-select-<name> and remove-quality-<name>",
+    "Clicking remove-quality-<name> removes the QUALITY block from the dropdown",
+    "Reopening dialog after removal shows ADD QUALITY TIER button again, no tier select"
+  ],
+  "failed": [],
+  "action_items": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}

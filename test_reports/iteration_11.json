@@ -1,0 +1,49 @@
+{
+  "summary": "Verified the corrected currency-controls swap on Dishonored 2 RPG inventory app. MAGIC side currency (MPE) shows editable input + '/ max' label + RESET only (no +/-); MUNDANE side currency (Gold Sovereign) shows -100/-10/-1 + editable input + +1/+10/+100 only (no RESET, no /max). All regression items also pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_results": {
+    "MAGIC currency (MPE)": {
+      "no_plus_minus_buttons": "PASS - all 6 (+/-)1/10/100 testids absent",
+      "reset_button_present": "PASS",
+      "max_label_present": "PASS - text shows 'MPE / 100 RESET'",
+      "input_editable": "PASS - manually typed 3, persisted",
+      "reset_restores_max": "PASS - after RESET value = 100"
+    },
+    "MUNDANE currency (Gold Sovereign)": {
+      "all_six_adjust_buttons_present": "PASS - --100, --10, --1, -+1, -+10, -+100 all exist",
+      "no_reset_button": "PASS",
+      "no_max_label": "PASS - text has no '/' separator",
+      "plus10_works": "PASS - 0 -> 10",
+      "minus1_works": "PASS - 10 -> 9",
+      "input_editable": "PASS - manually typed 42, persisted",
+      "floored_at_zero": "PASS - 3x -100 from 42 -> 0"
+    },
+    "Regression": {
+      "tier_filter_chips_hidden_on_magic": "PASS (count=0)",
+      "tier_filter_chips_visible_on_mundane": "PASS (count=1)",
+      "currency_strip_below_character_name": "PASS (visual confirm)",
+      "new_category_tab_present": "PASS (tab-new-category found on magic side)",
+      "category_tabs_use_id_based_testids": "PASS - tab-everything, tab-<id>, tab-<id>, tab-new-category",
+      "cast_button_regression": "NOT DIRECTLY RE-TESTED THIS ITERATION - starter Corvo has no seeded magic abilities so no cast-btn-<name> rendered; iteration 10 had already verified CAST. Currency swap change does not touch ItemRow CAST logic."
+    }
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Minor: data-testid uses unencoded spaces (e.g. 'currency-Gold Sovereign'). Works but consider id-based testids like already done for category tabs, to be consistent and avoid future selector escaping issues.",
+    "Minor: testid concatenation produces 'currency-Gold Sovereign--100' (double dash for negatives, single dash before '+'). Pattern works but is unintuitive; an explicit delimiter like 'currency-<name>-delta-<n>' would be cleaner."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no backend)", "frontend": "100% (all currency-swap assertions pass)"},
+  "test_credentials": "None - localStorage only, no auth.",
+  "seed_data_creation": "None - used starter Corvo character + starter currencies (Gold Sovereign mundane, MPE magic).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Open Corvo by double-clicking the roster card. MUNDANE/MAGIC side toggles at the top use data-testids side-toggle-mundane / side-toggle-magic. Currency strip is below the character name. Category tabs are id-based (tab-<categoryId>) plus tab-everything and tab-new-category. The CAST flow on magic side was not directly retested here because the starter Corvo has no seeded magic abilities; if asked again, create a magic ability via + NEW ABILITY, set MPE cost in item dialog, then exercise cast-btn-<name>.",
+  "rca of the issue": "Previous swap bug was that MAGIC currency had the +/- buttons and MUNDANE had the RESET/max. The current InventoryView.jsx now correctly branches on side==='magic' to render input + '/max' + RESET, and on mundane to render -/+ buttons + input only. Verified via UI: MPE shows RESET and no adjust buttons; Gold Sovereign shows all six adjust buttons and no RESET."
+}

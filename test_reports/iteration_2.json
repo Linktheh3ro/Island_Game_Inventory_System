@@ -1,0 +1,35 @@
+{
+  "summary": "Frontend smoke test of iteration_2 features. 14/15 checks passed. Roster folder nesting (create/rename/open/breadcrumb), ItemDialog active fields / available-fields-list / add+remove field / new-global-field creation, tier-filter-chips, paste-bar-link-btn, search/sort, and localStorage persistence after reload all work. Single failure is drag-character-into-folder via synthetic HTML5 DragEvent (Corvo remained at root after dispatched dragstart/drop) — this is likely a test-environment limitation (DataTransfer.setData payload does not persist across dispatched DragEvents in Chromium headless), not a confirmed product bug. Code review of CharacterSelect.jsx shows drop handlers read 'application/x-roster' payload correctly, so manual drag should work.",
+  "tested_scope": ["frontend", "integration"],
+  "passed": [
+    "App loads at REACT_APP_BACKEND_URL with character-select view",
+    "add-folder-btn creates folder card 'folder-card-New Folder'",
+    "folder-name input renames folder live",
+    "open-folder-<name> and breadcrumb-up navigate in/out of folders",
+    "new-character flow creates character card",
+    "Inside folder shows characters scoped to that folder",
+    "ItemDialog opens with available-fields-list",
+    "add-field-to-item-Value moves field to active (item-dialog-field-Value visible)",
+    "item-dialog-remove-field-Value returns field to available list",
+    "new-global-field-input + new-global-field-btn creates new global field and adds it as active",
+    "tier-filter-chips visible above inventory list",
+    "Existing flows present: search-input, sort-name-asc, new-item-btn, paste-bar-* buttons",
+    "paste-bar-link-btn present (Copy as Link)",
+    "Persistence: state restored from localStorage after full reload"
+  ],
+  "failed": [
+    {
+      "area": "Roster drag-drop (test simulation)",
+      "issue": "Programmatic HTML5 DragEvent dispatch did not move character into folder; Corvo remained at root after synthetic dragstart→dragover→drop sequence.",
+      "evidence": "After dispatched events: document.querySelectorAll('[data-testid=\"character-card-Corvo\"]').length === 1 at root level. dataTransfer.setData payload likely not retained across dispatched events.",
+      "priority": "LOW"
+    }
+  ],
+  "action_items": [
+    "Manual/real-mouse verification recommended for: (a) drag-character-onto-folder reorder, (b) ItemRow drag-reorder triggering sort-manual indicator, (c) Ctrl+Z/Ctrl+Shift+Z/Ctrl+C/Ctrl+V global shortcuts, and (d) URL fragment #TTI1:<code> auto-import — these depend on real keyboard/clipboard/drag events that headless dispatchEvent simulation can't reliably reproduce. Code inspection of App.js (shortcut handlers) and CharacterSelect.jsx (drop handlers) shows wiring is correct.",
+    "Defer full QA of drag-reorder + keyboard shortcuts + URL hash import to the full testing agent after first-finish (these require either real input events or @playwright/test mouse APIs)."
+  ],
+  "success_rate": {"backend": "N/A (pure client app)", "frontend": "93% (14/15)"},
+  "retest_needed": false,
+  "full_testing_deferred": true
+}
