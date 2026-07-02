@@ -13,10 +13,13 @@ export const defaultTiers = () => ([
 ]);
 
 export const defaultCategories = () => ([
+  { id: uid(), name: 'Armour' },
   { id: uid(), name: 'Weapons' },
-  { id: uid(), name: 'Armor' },
+  { id: uid(), name: 'Ammo' },
+  { id: uid(), name: 'Equipment' },
+  { id: uid(), name: 'Valuables' },
   { id: uid(), name: 'Consumables' },
-  { id: uid(), name: 'Quest Items' },
+  { id: uid(), name: 'Documents' },
   { id: uid(), name: 'Misc' },
 ]);
 

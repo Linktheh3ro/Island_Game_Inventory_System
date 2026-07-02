@@ -1,9 +1,32 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Plus, X } from 'lucide-react';
 import { uid, getActiveFieldIds } from '@/lib/defaults';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
 } from '@/components/ui/dialog';
+
+const AutoGrowingTextarea = ({ value, onChange, className, ...props }) => {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={value}
+      onChange={onChange}
+      className={className}
+      rows={1}
+      {...props}
+    />
+  );
+};
 
 export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpdateCharacter }) => {
   const [draft, setDraft] = useState(item);
@@ -187,25 +210,37 @@ export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpda
             <div className="font-meta text-[11px] text-[#4a4d52] italic">None yet — add from the list below.</div>
           )}
           <div className="grid gap-2 max-h-56 overflow-y-auto pr-1">
-            {activeFields.map((f) => (
-              <div key={f.id} className="grid grid-cols-[120px_1fr_auto] gap-2 items-center">
-                <span className="font-meta text-[10px] uppercase tracking-[0.2em] text-[#8A9196]">{f.name}</span>
-                <input
-                  value={draft.fields[f.id] || ''}
-                  onChange={(e) => setInfo(f.id, e.target.value)}
-                  className="bg-[#0d0d0f] silver-border px-3 py-1.5 font-item text-sm text-[#C8CCD2] focus:outline-none focus:border-[#6a6c70]"
-                  data-testid={`item-dialog-field-${f.name}`}
-                />
-                <button
-                  onClick={() => removeFieldFromItem(f.id)}
-                  className="p-1.5 silver-border bg-[#0d0d0f] hover:bg-[#2a0d10] text-[#8A9196] hover:text-[#c08080]"
-                  title="Remove from item"
-                  data-testid={`item-dialog-remove-field-${f.name}`}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
+            {activeFields.map((f) => {
+              const isMultiLine = ['description', 'notes', 'abilities', 'enchantments'].includes(f.name.toLowerCase());
+              return (
+                <div key={f.id} className="grid grid-cols-[120px_1fr_auto] gap-2 items-start">
+                  <span className="font-meta text-[10px] uppercase tracking-[0.2em] text-[#8A9196] mt-2">{f.name}</span>
+                  {isMultiLine ? (
+                    <AutoGrowingTextarea
+                      value={draft.fields[f.id] || ''}
+                      onChange={(e) => setInfo(f.id, e.target.value)}
+                      className="bg-[#0d0d0f] silver-border px-3 py-1.5 font-item text-sm text-[#C8CCD2] focus:outline-none focus:border-[#6a6c70] resize-none overflow-hidden min-h-[38px] custom-scrollbar"
+                      data-testid={`item-dialog-field-${f.name}`}
+                    />
+                  ) : (
+                    <input
+                      value={draft.fields[f.id] || ''}
+                      onChange={(e) => setInfo(f.id, e.target.value)}
+                      className="bg-[#0d0d0f] silver-border px-3 py-1.5 font-item text-sm text-[#C8CCD2] focus:outline-none focus:border-[#6a6c70]"
+                      data-testid={`item-dialog-field-${f.name}`}
+                    />
+                  )}
+                  <button
+                    onClick={() => removeFieldFromItem(f.id)}
+                    className="p-1.5 silver-border bg-[#0d0d0f] hover:bg-[#2a0d10] text-[#8A9196] hover:text-[#c08080] mt-0.5"
+                    title="Remove from item"
+                    data-testid={`item-dialog-remove-field-${f.name}`}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              );
+            })}
           </div>
 
           <div className="silver-divider my-1" />

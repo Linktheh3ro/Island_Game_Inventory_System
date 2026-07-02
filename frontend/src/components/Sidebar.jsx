@@ -719,66 +719,72 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
     );
   };
 
-  if (collapsed) return null;
-
   return (
-    <aside className="w-64 border-r border-[#1f1f23] bg-[#08080a] flex flex-col shrink-0 select-none h-screen overflow-hidden">
-      {/* Title Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#1f1f23]">
-        <div className="flex items-center gap-2">
-          <span
-            onClick={() => setView('roster')}
-            className="font-display text-[11px] tracking-[0.25em] silver-text engraved cursor-pointer hover:text-[#E2E4E9]"
-          >
-            CHRONICLE CODEX
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => addFolder(null)}
-            className="p-1 hover:bg-[#16161a] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#C8CCD2]"
-            title="New Folder"
-          >
-            <FolderPlus size={12} />
-          </button>
-          <button
-            onClick={() => addCharacter(null)}
-            className="p-1 hover:bg-[#16161a] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#C8CCD2]"
-            title="New Character"
-          >
-            <UserPlus size={12} />
-          </button>
-          <button
-            onClick={onToggleCollapse}
-            className="p-1 hover:bg-[#16161a] text-[#6a6c70] hover:text-[#C8CCD2]"
-            title="Collapse Sidebar"
-          >
-            <ChevronsLeft size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Explorer Tree Body */}
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDraggedOverId('sidebar-body');
-        }}
-        onDragLeave={() => setDraggedOverId(null)}
-        onDrop={(e) => handleSidebarDrop(e, null)}
-        className={`flex-1 overflow-y-auto px-2 py-3 space-y-2 custom-scrollbar transition-colors ${
-          draggedOverId === 'sidebar-body' ? 'bg-[#16161a]/30 border-2 border-dashed border-[#6a6c70]/30 m-1 rounded' : ''
-        }`}
-      >
-        {/* Render tree recursively from root (null parentId) */}
-        {renderTree(null)}
-
-        {/* Empty State warning */}
-        {Object.keys(folders).length === 0 && Object.keys(characters).length === 0 && (
-          <div className="text-center py-8 font-meta text-[10px] tracking-[0.15em] text-[#4a4d52] px-2 italic">
-            CODEX EMPTY — CLICK ICONS ABOVE TO CREATE A FOLDER OR CHARACTER
+    <aside
+      className={`bg-[#08080a] flex flex-col shrink-0 select-none h-screen overflow-hidden transition-all duration-300 ease-in-out ${
+        collapsed
+          ? 'w-0 border-r-0 opacity-0 pointer-events-none'
+          : 'w-64 border-r border-[#1f1f23] opacity-100'
+      }`}
+    >
+      <div className="w-64 flex flex-col h-full shrink-0">
+        {/* Title Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#1f1f23]">
+          <div className="flex items-center gap-2">
+            <span
+              onClick={() => setView('roster')}
+              className="font-display text-[11px] tracking-[0.25em] silver-text engraved cursor-pointer hover:text-[#E2E4E9]"
+            >
+              CHRONICLE CODEX
+            </span>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => addFolder(null)}
+              className="p-1 hover:bg-[#16161a] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#C8CCD2]"
+              title="New Folder"
+            >
+              <FolderPlus size={12} />
+            </button>
+            <button
+              onClick={() => addCharacter(null)}
+              className="p-1 hover:bg-[#16161a] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#C8CCD2]"
+              title="New Character"
+            >
+              <UserPlus size={12} />
+            </button>
+            <button
+              onClick={onToggleCollapse}
+              className="p-1 hover:bg-[#16161a] text-[#6a6c70] hover:text-[#C8CCD2]"
+              title="Collapse Sidebar"
+            >
+              <ChevronsLeft size={14} />
+            </button>
+          </div>
+        </div>
+
+        {/* Explorer Tree Body */}
+        <div
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDraggedOverId('sidebar-body');
+          }}
+          onDragLeave={() => setDraggedOverId(null)}
+          onDrop={(e) => handleSidebarDrop(e, null)}
+          className={`flex-1 overflow-y-auto px-2 py-3 space-y-2 custom-scrollbar transition-colors ${
+            draggedOverId === 'sidebar-body' ? 'bg-[#16161a]/30 border-2 border-dashed border-[#6a6c70]/30 m-1 rounded' : ''
+          }`}
+        >
+          {/* Render tree recursively from root (null parentId) */}
+          {renderTree(null)}
+
+          {/* Empty State warning */}
+          {Object.keys(folders).length === 0 && Object.keys(characters).length === 0 && (
+            <div className="text-center py-8 font-meta text-[10px] tracking-[0.15em] text-[#4a4d52] px-2 italic">
+              CODEX EMPTY — CLICK ICONS ABOVE TO CREATE A FOLDER OR CHARACTER
+            </div>
+          )}
+        </div>
       </div>
     </aside>
   );

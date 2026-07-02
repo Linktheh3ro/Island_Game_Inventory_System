@@ -10,6 +10,9 @@ import { toast } from 'sonner';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator
 } from '@/components/ui/context-menu';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
+} from '@/components/ui/dialog';
 
 const ALL = '__all__';
 const NO_TIER = '__notier__';
@@ -47,6 +50,16 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   const [editingItem, setEditingItem] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const fileRef = useRef(null);
+
+  // Custom Category dialog states
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [categoryDialogMode, setCategoryDialogMode] = useState('create'); // 'create' | 'edit'
+  const [categoryDialogId, setCategoryDialogId] = useState(null);
+  const [categoryDialogName, setCategoryDialogName] = useState('');
+
+  // Category delete confirmation dialog states
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
   const tabsRef = useRef(null);
@@ -246,10 +259,10 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   };
 
   const addCategoryTab = () => {
-    const cat = { id: uid(), name: 'New Category', side };
-    updateCharacter({ ...character, categories: [...character.categories, cat] });
-    setActiveTab(cat.id);
-    toast.message(`New ${side} category`);
+    setCategoryDialogMode('create');
+    setCategoryDialogId(null);
+    setCategoryDialogName('New Category');
+    setCategoryDialogOpen(true);
   };
 
   const handleItemClick = (it, e) => {
@@ -566,21 +579,48 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   const renameCategoryTab = (catId) => {
     const cat = character.categories.find(c => c.id === catId);
     if (!cat) return;
-    const name = prompt("Rename category:", cat.name);
-    if (name === null) return;
-    const cleanName = name.trim();
-    if (!cleanName) return toast.error("Category name cannot be empty");
-    updateCharacter({
-      ...character,
-      categories: character.categories.map(c => c.id === catId ? { ...c, name: cleanName } : c)
-    });
-    toast.success(`Category renamed to "${cleanName}"`);
+    setCategoryDialogMode('edit');
+    setCategoryDialogId(catId);
+    setCategoryDialogName(cat.name);
+    setCategoryDialogOpen(true);
   };
 
   const deleteCategoryTab = (catId) => {
+    setDeleteConfirmId(catId);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleCategorySave = () => {
+    const cleanName = categoryDialogName.trim();
+    if (!cleanName) {
+      toast.error("Category name cannot be empty");
+      return;
+    }
+
+    if (categoryDialogMode === 'create') {
+      const newId = uid();
+      const newCat = { id: newId, name: cleanName, side };
+      updateCharacter({
+        ...character,
+        categories: [...character.categories, newCat]
+      });
+      setActiveTab(newId);
+      toast.success(`Category "${cleanName}" created`);
+    } else {
+      updateCharacter({
+        ...character,
+        categories: character.categories.map(c => c.id === categoryDialogId ? { ...c, name: cleanName } : c)
+      });
+      toast.success(`Category renamed to "${cleanName}"`);
+    }
+    setCategoryDialogOpen(false);
+  };
+
+  const handleCategoryDeleteConfirm = () => {
+    if (!deleteConfirmId) return;
+    const catId = deleteConfirmId;
     const cat = character.categories.find(c => c.id === catId);
     if (!cat) return;
-    if (!confirm(`Are you sure you want to delete category "${cat.name}"? Items inside will be moved to the first available category.`)) return;
 
     const remainingCats = character.categories.filter(c => c.id !== catId);
     const sideCats = remainingCats.filter(c => (c.side || 'mundane') === side && !c.isCurrency);
@@ -595,6 +635,8 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     if (activeTab === catId) {
       setActiveTab(fallbackCatId || ALL);
     }
+    setDeleteConfirmOpen(false);
+    setDeleteConfirmId(null);
     toast.success(`Category "${cat.name}" deleted`);
   };
 
@@ -1166,6 +1208,78 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
         onUpdateCharacter={updateCharacter}
         activeInventoryId={state.activeInventoryId}
       />
+
+      {/* Custom Category Dialog */}
+      <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+        <DialogContent className="bg-[#0a0a0c] silver-border max-w-md" data-testid="category-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-display silver-text tracking-[0.18em]">
+              {categoryDialogMode === 'create' ? 'NEW CATEGORY' : 'RENAME CATEGORY'}
+            </DialogTitle>
+            <DialogDescription className="font-meta text-[9px] tracking-[0.3em] text-[#4a4d52]">
+              ENTER CATEGORY DETAILS BELOW
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 py-3">
+            <div className="flex flex-col gap-1">
+              <span className="font-meta text-[10px] tracking-[0.25em] text-[#6a6c70]">CATEGORY NAME</span>
+              <input
+                value={categoryDialogName}
+                onChange={(e) => setCategoryDialogName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCategorySave(); }}
+                className="w-full bg-[#0d0d0f] silver-border px-3 py-2 font-item text-base text-[#C8CCD2] focus:outline-none focus:border-[#6a6c70]"
+                data-testid="category-dialog-name-input"
+                autoFocus
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex gap-2 justify-end">
+            <button
+              onClick={() => setCategoryDialogOpen(false)}
+              className="px-3 py-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-xs tracking-[0.25em] text-[#8A9196] hover:text-[#C8CCD2]"
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleCategorySave}
+              className="px-3 py-2 silver-border bg-[#16161a] hover:bg-[#1f1f23] font-meta text-xs tracking-[0.25em] text-[#E2E4E9]"
+              data-testid="category-dialog-save-btn"
+            >
+              SAVE
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Category Confirmation Dialog */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="bg-[#0a0a0c] silver-border max-w-md" data-testid="category-delete-confirm-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-display text-red-500 tracking-[0.18em]">DELETE CATEGORY</DialogTitle>
+            <DialogDescription className="font-meta text-[9px] tracking-[0.3em] text-red-900/60">
+              ARE YOU SURE? THIS ACTION IS PERMANENT
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-3 font-item text-sm text-[#C8CCD2] leading-relaxed">
+            Are you sure you want to delete category <strong className="text-white">“{character.categories.find(c => c.id === deleteConfirmId)?.name}”</strong>? Any items currently in this category will be moved to the first available category.
+          </div>
+          <DialogFooter className="flex gap-2 justify-end">
+            <button
+              onClick={() => { setDeleteConfirmOpen(false); setDeleteConfirmId(null); }}
+              className="px-3 py-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-xs tracking-[0.25em] text-[#8A9196] hover:text-[#C8CCD2]"
+            >
+              CANCEL
+            </button>
+            <button
+              onClick={handleCategoryDeleteConfirm}
+              className="px-3 py-2 silver-border bg-[#2a0d10] hover:bg-[#3a1317] font-meta text-xs tracking-[0.25em] text-red-400"
+              data-testid="category-delete-confirm-btn"
+            >
+              DELETE
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

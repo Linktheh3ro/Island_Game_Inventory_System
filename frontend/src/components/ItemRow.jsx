@@ -216,7 +216,12 @@ export const ItemRow = ({
   const category = character.categories.find((c) => c.id === item.categoryId);
   const stack = item.stack ?? 1;
   const hasStack = !!item.hasStack;
+  const [hasBeenOpened, setHasBeenOpened] = useState(false);
   const [dropEdge, setDropEdge] = useState(null); // 'top' | 'bottom' | 'inside' | null
+
+  useEffect(() => {
+    if (expanded) setHasBeenOpened(true);
+  }, [expanded]);
 
   useEffect(() => {
     const handleGlobalDragEnd = () => {
@@ -460,36 +465,40 @@ export const ItemRow = ({
                 </button>
               </div>
             </div>
-            {expanded && (
-              <ItemDropdown
-                item={item}
-                character={character}
-                stack={stack}
-                hasStack={hasStack}
-                activeFieldIds={activeFieldIds}
-                activeFields={activeFields}
-                adjustStack={adjustStack}
-                removeFieldFromItem={removeFieldFromItem}
-                onUpdate={onUpdate}
-                qualityActive={qualityActive}
-                onDelete={onDelete}
-                onDuplicate={onDuplicate}
-                onOpenSettings={onOpenSettings}
-                onCast={onCast}
-                onRemoveFromCollection={onRemoveFromCollection}
-                onAddItemToCollection={onAddItemToCollection}
-                expandedIds={expandedIds}
-                toggleExpanded={toggleExpanded}
-                canCast={canCast}
-                listView={listView}
-                fieldColumns={fieldColumns}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
-                onDropOnItem={onDropOnItem}
-                onDropInsideCollection={onDropInsideCollection}
-                tierRank={tierRank}
-              />
-            )}
+            <div className={`dropdown-grid ${expanded ? 'dropdown-grid-expanded border-b border-[#16161a]' : ''}`}>
+              <div className="overflow-hidden min-h-0">
+                {(expanded || hasBeenOpened) && (
+                  <ItemDropdown
+                    item={item}
+                    character={character}
+                    stack={stack}
+                    hasStack={hasStack}
+                    activeFieldIds={activeFieldIds}
+                    activeFields={activeFields}
+                    adjustStack={adjustStack}
+                    removeFieldFromItem={removeFieldFromItem}
+                    onUpdate={onUpdate}
+                    qualityActive={qualityActive}
+                    onDelete={onDelete}
+                    onDuplicate={onDuplicate}
+                    onOpenSettings={onOpenSettings}
+                    onCast={onCast}
+                    onRemoveFromCollection={onRemoveFromCollection}
+                    onAddItemToCollection={onAddItemToCollection}
+                    expandedIds={expandedIds}
+                    toggleExpanded={toggleExpanded}
+                    canCast={canCast}
+                    listView={listView}
+                    fieldColumns={fieldColumns}
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                    onDropOnItem={onDropOnItem}
+                    onDropInsideCollection={onDropInsideCollection}
+                    tierRank={tierRank}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </ContextMenuTrigger>
         <ItemContextMenuContent item={item} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} onOpenSettings={() => onOpenSettings(item)} onRemoveFromCollection={onRemoveFromCollection} />
@@ -645,36 +654,40 @@ export const ItemRow = ({
             </Tooltip>
           </TooltipProvider>
 
-          {expanded && (
-            <ItemDropdown
-              item={item}
-              character={character}
-              stack={stack}
-              hasStack={hasStack}
-              activeFieldIds={activeFieldIds}
-              activeFields={activeFields}
-              adjustStack={adjustStack}
-              removeFieldFromItem={removeFieldFromItem}
-              onUpdate={onUpdate}
-              qualityActive={qualityActive}
-              onDelete={onDelete}
-              onDuplicate={onDuplicate}
-              onOpenSettings={onOpenSettings}
-              onCast={onCast}
-              onRemoveFromCollection={onRemoveFromCollection}
-              onAddItemToCollection={onAddItemToCollection}
-              expandedIds={expandedIds}
-              toggleExpanded={toggleExpanded}
-              canCast={canCast}
-              listView={listView}
-              fieldColumns={fieldColumns}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDropOnItem={onDropOnItem}
-              onDropInsideCollection={onDropInsideCollection}
-              tierRank={tierRank}
-            />
-          )}
+          <div className={`dropdown-grid ${expanded ? 'dropdown-grid-expanded border-b border-[#16161a]' : ''}`}>
+            <div className="overflow-hidden min-h-0">
+              {(expanded || hasBeenOpened) && (
+                <ItemDropdown
+                  item={item}
+                  character={character}
+                  stack={stack}
+                  hasStack={hasStack}
+                  activeFieldIds={activeFieldIds}
+                  activeFields={activeFields}
+                  adjustStack={adjustStack}
+                  removeFieldFromItem={removeFieldFromItem}
+                  onUpdate={onUpdate}
+                  qualityActive={qualityActive}
+                  onDelete={onDelete}
+                  onDuplicate={onDuplicate}
+                  onOpenSettings={onOpenSettings}
+                  onCast={onCast}
+                  onRemoveFromCollection={onRemoveFromCollection}
+                  onAddItemToCollection={onAddItemToCollection}
+                  expandedIds={expandedIds}
+                  toggleExpanded={toggleExpanded}
+                  canCast={canCast}
+                  listView={listView}
+                  fieldColumns={fieldColumns}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                  onDropOnItem={onDropOnItem}
+                  onDropInsideCollection={onDropInsideCollection}
+                  tierRank={tierRank}
+                />
+              )}
+            </div>
+          </div>
         </div>
       </ContextMenuTrigger>
       <ItemContextMenuContent item={item} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} onOpenSettings={() => onOpenSettings(item)} onRemoveFromCollection={onRemoveFromCollection} />
@@ -692,6 +705,13 @@ const ItemDropdown = ({
   const tier = character.qualityTiers.find((t) => t.id === item.tierId);
   const descField = character.infoFields.find((f) => f.name.toLowerCase() === 'description');
   const descVal = descField ? (item.fields[descField.id] || '') : '';
+
+  const abilitiesField = character.infoFields.find(f => {
+    const lname = f.name.toLowerCase();
+    return lname === 'abilities' || lname === 'enchantments' || lname === 'active enchantments / abilities';
+  });
+  const abilitiesVal = abilitiesField ? (item.fields[abilitiesField.id] || '') : '';
+
   return (
     <div className="slide-down px-12 py-4 bg-[#08080a] border-b border-[#16161a] relative" data-testid={`item-dropdown-${item.name}`}>
       {tierRank === 'grandmaster' && tier && (
@@ -704,11 +724,35 @@ const ItemDropdown = ({
         </div>
       )}
 
+      {/* Custom Abilities Box rendering */}
+      {abilitiesVal && (
+        <div className="mb-4 relative z-10 select-text">
+          <div className="font-meta text-[10px] tracking-[0.2em] text-[#6a6c70] uppercase mb-2">
+            ABILITIES
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {abilitiesVal.split(',').map(x => x.trim()).filter(Boolean).map((ab, idx) => (
+              <div
+                key={idx}
+                className="px-3 py-1.5 border border-[#4a1215] bg-[#0d0506] text-[#c0393b] font-item text-xs flex items-center gap-1.5 rounded-sm shadow-[0_2px_4px_rgba(0,0,0,0.4)]"
+              >
+                <span className="text-[#e23c3e] text-[10px] leading-none select-none">✦</span>
+                <span className="leading-none tracking-wide">{ab}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Invisible fields grid */}
       {(() => {
         if (!activeFields) return null;
         const invisibleFields = activeFields.filter(
-          (f) => f.visible === false && f.name.toLowerCase() !== 'description' && (item.fields?.[f.id] ?? '') !== ''
+          (f) => {
+            const lname = f.name.toLowerCase();
+            const isAbilities = lname === 'abilities' || lname === 'enchantments' || lname === 'active enchantments / abilities';
+            return f.visible === false && lname !== 'description' && !isAbilities && (item.fields?.[f.id] ?? '') !== '';
+          }
         );
         if (invisibleFields.length === 0) return null;
         return (

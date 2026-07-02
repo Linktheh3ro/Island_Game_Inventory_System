@@ -118,12 +118,28 @@ body {
 }
 
 .slide-down {
-  animation: slideDown 0.22s ease-out;
+  animation: slideDown 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top;
   overflow: hidden;
 }
 @keyframes slideDown {
-  from { opacity: 0; max-height: 0; }
-  to { opacity: 1; max-height: 1000px; }
+  from {
+    opacity: 0;
+    transform: scaleY(0.95) translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1) translateY(0);
+  }
+}
+
+.dropdown-grid {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.35s;
+}
+.dropdown-grid-expanded {
+  grid-template-rows: 1fr;
 }
 
 .tab-active {
