@@ -237,16 +237,20 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   const sideCurrencies = character.categories.filter((c) => (c.side || 'mundane') === side && c.isCurrency);
 
   const setCurrencyValue = (catId, val) => {
+    const cleaned = String(val).replace(/,/g, '');
+    const num = parseInt(cleaned || '0', 10) || 0;
     updateCharacter({
       ...character,
-      categories: character.categories.map((c) => c.id === catId ? { ...c, currencyValue: Math.max(0, Math.min((c.currencyMax ?? 9999), parseInt(val||'0',10))) } : c),
+      categories: character.categories.map((c) => c.id === catId ? { ...c, currencyValue: Math.max(0, Math.min((c.currencyMax ?? 9999), num)) } : c),
     });
   };
   // Mundane currencies: plain number, no clamping to a max
   const setMundaneCurrencyValue = (catId, val) => {
+    const cleaned = String(val).replace(/,/g, '');
+    const num = parseInt(cleaned || '0', 10) || 0;
     updateCharacter({
       ...character,
-      categories: character.categories.map((c) => c.id === catId ? { ...c, currencyValue: parseInt(val||'0',10) || 0 } : c),
+      categories: character.categories.map((c) => c.id === catId ? { ...c, currencyValue: num } : c),
     });
   };
   const adjustMundaneCurrency = (catId, delta) => {
@@ -976,13 +980,13 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                     <div className="font-meta text-[10px] tracking-[0.25em] text-[#8A9196]">{cur.name.toUpperCase()}</div>
                     <div className="flex items-center gap-2">
                       <input
-                        type="number"
-                        value={cur.currencyValue ?? 0}
+                        type="text"
+                        value={(cur.currencyValue ?? 0).toLocaleString()}
                         onChange={(e) => setCurrencyValue(cur.id, e.target.value)}
                         className="w-16 bg-[#050507] silver-border px-2 py-1 font-meta text-sm text-[#C8CCD2] tabular-nums text-center focus:outline-none focus:border-[#6a6c70] no-spin"
                         data-testid={`currency-input-${cur.name}`}
                       />
-                      <span className="font-meta text-[10px] text-[#4a4d52] flex-1">/ {effectiveMax(cur)}</span>
+                      <span className="font-meta text-[10px] text-[#4a4d52] flex-1">/ {effectiveMax(cur).toLocaleString()}</span>
                       <button onClick={() => resetCurrency(cur.id)} className="px-2 py-1 silver-border bg-[#16161a] hover:bg-[#1f1f23] font-meta text-[10px] tracking-[0.15em] text-[#C8CCD2]" data-testid={`currency-reset-${cur.name}`}>RESET</button>
                     </div>
                   </div>
@@ -994,20 +998,20 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                   >
                     <div className="font-meta text-[10px] tracking-[0.25em] text-[#8A9196]">{cur.name.toUpperCase()}</div>
                     <input
-                      type="number"
-                      value={cur.currencyValue ?? 0}
+                      type="text"
+                      value={(cur.currencyValue ?? 0).toLocaleString()}
                       onChange={(e) => setMundaneCurrencyValue(cur.id, e.target.value)}
                       className="w-full bg-[#050507] silver-border px-2 py-1 font-meta text-sm text-[#C8CCD2] tabular-nums text-center focus:outline-none focus:border-[#6a6c70] no-spin"
                       data-testid={`currency-input-${cur.name}`}
                     />
                     <div className="flex items-center justify-between gap-1">
-                      {[-100, -10, -1].map((d) => (
-                        <button key={d} onClick={() => adjustMundaneCurrency(cur.id, d)} className="flex-1 px-1 py-0.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] text-[#C8CCD2]" data-testid={`currency-${cur.name}-${d}`}>{d}</button>
+                      {[1, 10, 100].map((d) => (
+                        <button key={d} onClick={() => adjustMundaneCurrency(cur.id, d)} className="flex-1 px-1 py-0.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] text-[#C8CCD2]" data-testid={`currency-${cur.name}-+${d}`}>+{d}</button>
                       ))}
                     </div>
                     <div className="flex items-center justify-between gap-1">
-                      {[100, 10, 1].map((d) => (
-                        <button key={d} onClick={() => adjustMundaneCurrency(cur.id, d)} className="flex-1 px-1 py-0.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] text-[#C8CCD2]" data-testid={`currency-${cur.name}-+${d}`}>+{d}</button>
+                      {[-1, -10, -100].map((d) => (
+                        <button key={d} onClick={() => adjustMundaneCurrency(cur.id, d)} className="flex-1 px-1 py-0.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] text-[#C8CCD2]" data-testid={`currency-${cur.name}-${d}`}>{d}</button>
                       ))}
                     </div>
                   </div>

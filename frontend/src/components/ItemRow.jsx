@@ -39,6 +39,26 @@ const getFormattedFieldValue = (field, item, hasStack, stack) => {
   if (raw === undefined || raw === null || raw === '') return null;
 
   const fieldName = field.name.toLowerCase();
+
+  if (fieldName === 'value') {
+    // Truncate currency value when not expanded (e.g. 1m, 1k, etc.)
+    const match = String(raw).match(/^([0-9.]+)(.*)$/);
+    if (!match) return String(raw);
+    const num = parseFloat(match[1]);
+    const suffix = match[2];
+    if (isNaN(num)) return String(raw);
+    const finalNum = (hasStack && stack > 1) ? (num * stack) : num;
+    let formatted = '';
+    if (finalNum >= 1000000) {
+      formatted = (finalNum / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
+    } else if (finalNum >= 1000) {
+      formatted = (finalNum / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    } else {
+      formatted = finalNum.toString();
+    }
+    return `${formatted}${suffix}`;
+  }
+
   const isValueOrStorage = fieldName === 'value' || fieldName.endsWith('storage');
 
   if (isValueOrStorage && hasStack && stack > 1) {
@@ -53,6 +73,28 @@ const getFormattedFieldValue = (field, item, hasStack, stack) => {
     }
   }
   return raw;
+};
+
+const formatFullValueAmount = (field, item, hasStack, stack) => {
+  const raw = item.fields[field.id];
+  if (raw === undefined || raw === null || raw === '') return '';
+
+  const match = String(raw).match(/^([0-9.]+)(.*)$/);
+  if (!match) return String(raw);
+
+  const num = parseFloat(match[1]);
+  const suffix = match[2];
+
+  if (isNaN(num)) return String(raw);
+
+  if (hasStack && stack > 1) {
+    const total = num * stack;
+    const formattedTotal = total.toLocaleString();
+    const formattedSingle = num.toLocaleString();
+    return `${formattedTotal}${suffix} (${formattedSingle}${suffix} each)`;
+  }
+
+  return `${num.toLocaleString()}${suffix}`;
 };
 
 /**
@@ -436,7 +478,7 @@ export const ItemRow = ({
                   <button
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => { e.stopPropagation(); onUpdate({ ...item, isDailyUsed: !item.isDailyUsed }); }}
-                    className="w-[54px] px-0 py-1 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
+                    className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
                     title={item.isDailyUsed ? "Reset daily use" : "Use item / ability for the day"}
                     data-testid={`daily-use-btn-${item.name}`}
                   >
@@ -618,7 +660,7 @@ export const ItemRow = ({
                       <button
                         onMouseDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); onUpdate({ ...item, isDailyUsed: !item.isDailyUsed }); }}
-                        className="w-[54px] px-0 py-1 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
+                        className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
                         title={item.isDailyUsed ? "Reset daily use" : "Use item / ability for the day"}
                         data-testid={`daily-use-btn-${item.name}`}
                       >
@@ -712,6 +754,9 @@ const ItemDropdown = ({
   });
   const abilitiesVal = abilitiesField ? (item.fields[abilitiesField.id] || '') : '';
 
+  const valueField = character.infoFields.find((f) => f.name.toLowerCase() === 'value');
+  const valueVal = valueField ? (item.fields[valueField.id] || '') : '';
+
   return (
     <div className="slide-down px-12 py-4 bg-[#08080a] border-b border-[#16161a] relative" data-testid={`item-dropdown-${item.name}`}>
       {tierRank === 'grandmaster' && tier && (
@@ -744,6 +789,18 @@ const ItemDropdown = ({
         </div>
       )}
 
+      {/* Custom Value rendering */}
+      {valueVal && (
+        <div className="mb-4 relative z-10 select-text">
+          <div className="font-meta text-[10px] tracking-[0.25em] text-[#6a6c70] uppercase mb-1">
+            VALUE
+          </div>
+          <div className="font-item text-sm text-[#C8CCD2]">
+            {formatFullValueAmount(valueField, item, hasStack, stack)}
+          </div>
+        </div>
+      )}
+
       {/* Invisible fields grid */}
       {(() => {
         if (!activeFields) return null;
@@ -751,7 +808,8 @@ const ItemDropdown = ({
           (f) => {
             const lname = f.name.toLowerCase();
             const isAbilities = lname === 'abilities' || lname === 'enchantments' || lname === 'active enchantments / abilities';
-            return f.visible === false && lname !== 'description' && !isAbilities && (item.fields?.[f.id] ?? '') !== '';
+            const isValue = lname === 'value';
+            return f.visible === false && lname !== 'description' && !isAbilities && !isValue && (item.fields?.[f.id] ?? '') !== '';
           }
         );
         if (invisibleFields.length === 0) return null;
