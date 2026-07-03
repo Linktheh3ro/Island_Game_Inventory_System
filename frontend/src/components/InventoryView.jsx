@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Plus, Search, Settings, ArrowDownAZ, ArrowUpAZ, ArrowDown01, ArrowUp01, ImagePlus, X, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Settings, ArrowDownAZ, ArrowUpAZ, ArrowDown01, ArrowUp01, ImagePlus, X, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Archive } from 'lucide-react';
 import { createItem, uid, itemCanExpand } from '@/lib/defaults';
 import { matches } from '@/lib/fuzzy';
 import { ItemRow } from './ItemRow';
@@ -124,15 +124,12 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   const [isDragOverSection, setIsDragOverSection] = useState(false);
 
   useEffect(() => {
-    const handleDragStart = () => setIsDragging(true);
     const handleDragEnd = () => {
       setIsDragging(false);
       setIsDragOverSection(false);
     };
-    window.addEventListener('dragstart', handleDragStart);
     window.addEventListener('dragend', handleDragEnd);
     return () => {
-      window.removeEventListener('dragstart', handleDragStart);
       window.removeEventListener('dragend', handleDragEnd);
     };
   }, []);
@@ -232,7 +229,10 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     updateCharacter({ ...character, items });
   };
 
-  const sideItems = character.items.filter((i) => (i.side || 'mundane') === side);
+  const sideItems = useMemo(() => {
+    const list = activeTab === '__archive__' ? (state.archive || []) : (character.items || []);
+    return list.filter((i) => (i.side || 'mundane') === side);
+  }, [character.items, state.archive, side, activeTab]);
   const sideCategories = character.categories.filter((c) => (c.side || 'mundane') === side && !c.isCurrency);
   const sideCurrencies = character.categories.filter((c) => (c.side || 'mundane') === side && c.isCurrency);
 
@@ -468,6 +468,96 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     toast.success("Reset all daily and limited use items");
   };
 
+  const handleArchiveItems = (ids) => {
+    const getNestedItemIds = (parentIds) => {
+      let result = [...parentIds];
+      let toCheck = [...parentIds];
+      while (toCheck.length > 0) {
+        const nextId = toCheck.pop();
+        const children = character.items.filter(it => it.containerId === nextId);
+        for (const child of children) {
+          if (!result.includes(child.id)) {
+            result.push(child.id);
+            toCheck.push(child.id);
+          }
+        }
+      }
+      return result;
+    };
+
+    const allIdsToArchive = getNestedItemIds(ids);
+    const itemsToArchive = character.items.filter(it => allIdsToArchive.includes(it.id));
+    if (itemsToArchive.length === 0) return;
+
+    setState(s => ({
+      ...s,
+      archive: [...(s.archive || []), ...itemsToArchive]
+    }));
+
+    const nextItems = character.items.filter(it => !allIdsToArchive.includes(it.id));
+    updateCharacter({ ...character, items: nextItems });
+
+    toast.success(`${itemsToArchive.length} item(s) moved to Archive`);
+  };
+
+  const handleRestoreFromArchive = (item) => {
+    const activeCharId = state.activeCharacterId;
+    const activeInvId = state.activeInventoryId;
+    if (!activeCharId || !activeInvId) {
+      toast.error("Please open a character inventory to restore items.");
+      return;
+    }
+    setState(s => {
+      const char = s.characters[activeCharId];
+      if (!char) return s;
+      
+      const toRestore = [item];
+      let archive = s.archive || [];
+      let toCheck = [item.id];
+      while (toCheck.length > 0) {
+        const parentId = toCheck.pop();
+        const children = archive.filter(it => it.containerId === parentId);
+        for (const child of children) {
+          if (!toRestore.some(it => it.id === child.id)) {
+            toRestore.push(child);
+            toCheck.push(child.id);
+          }
+        }
+      }
+
+      const nextArchive = archive.filter(it => !toRestore.some(x => x.id === it.id));
+      
+      const restoredItems = toRestore.map((x) => {
+        return {
+          ...x,
+          inventoryId: activeInvId,
+          containerId: x.id === item.id ? null : x.containerId
+        };
+      });
+
+      return {
+        ...s,
+        archive: nextArchive,
+        characters: {
+          ...s.characters,
+          [activeCharId]: {
+            ...char,
+            items: [...(char.items || []), ...restoredItems]
+          }
+        }
+      };
+    });
+    toast.success(`Restored “${item.name}”`);
+  };
+
+  const handlePermanentDelete = (itemId) => {
+    setState(s => ({
+      ...s,
+      archive: (s.archive || []).filter(it => it.id !== itemId)
+    }));
+    toast.success("Item permanently deleted from Archive");
+  };
+
   // Cast: find first currency on current side this item has Cost for; deduct or flash
   const castItem = (it) => {
     for (const cur of sideCurrencies) {
@@ -504,9 +594,13 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
 
   const visibleItems = useMemo(() => {
     let arr = sideItems;
-    const activeInvId = state.activeInventoryId;
-    arr = arr.filter((i) => (i.inventoryId || 'main') === activeInvId && !i.containerId);
-    if (activeTab !== ALL) arr = arr.filter((i) => i.categoryId === activeTab);
+    if (activeTab === '__archive__') {
+      arr = arr.filter((i) => !i.containerId);
+    } else {
+      const activeInvId = state.activeInventoryId;
+      arr = arr.filter((i) => (i.inventoryId || 'main') === activeInvId && !i.containerId);
+      if (activeTab !== ALL) arr = arr.filter((i) => i.categoryId === activeTab);
+    }
     if (tierFilter.size > 0) {
       arr = arr.filter((i) => {
         if (!i.tierId) return tierFilter.has(NO_TIER);
@@ -566,7 +660,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
       });
     }
     return arr;
-  }, [character.items, character.categories, character.qualityTiers, activeTab, search, sort, tierFilter, side, state.activeInventoryId, colSort]);
+  }, [sideItems, character.categories, character.qualityTiers, activeTab, search, sort, tierFilter, side, state.activeInventoryId, colSort, state.archive]);
 
   // Tab drop handlers (category reassign)
   const onTabDragOver = (e) => { e.preventDefault(); e.currentTarget.classList.add('drag-over'); };
@@ -845,6 +939,13 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
             <div className="flex items-baseline gap-2">
               <span className="font-meta text-[10px] tracking-[0.4em] text-[#6a6c70]">CHARACTER</span>
               {(() => {
+                if (activeTab === '__archive__') {
+                  return (
+                    <span className="font-meta text-[10px] tracking-[0.2em] text-[#B8860B] bg-[#1a150e] px-2 py-0.5 silver-border select-none font-semibold">
+                      SHARED VAULT ARCHIVE
+                    </span>
+                  );
+                }
                 const curInv = character.inventories?.find(inv => inv.id === state.activeInventoryId);
                 return curInv ? (
                   <span className="font-meta text-[10px] tracking-[0.2em] text-[#8A9196] bg-[#16161a] px-2 py-0.5 silver-border select-none">
@@ -861,15 +962,47 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
             />
           </div>
 
-          <div className="flex flex-col gap-1.5 shrink-0">
-            <button onClick={() => setSettingsOpen(true)} className="px-3 py-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-xs tracking-[0.2em] text-[#C8CCD2] flex items-center justify-center gap-2" data-testid="open-settings-btn">
-              <Settings size={14} />
-              SETTINGS
-            </button>
-            <button onClick={resetDailyItems} className="px-3 py-1.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] tracking-[0.15em] text-[#C8CCD2] flex items-center justify-center gap-1.5" data-testid="reset-dailies-btn">
-              <RotateCcw size={10} />
-              RESET DAILY USES
-            </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {isDragging && (
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.add('bg-[#1a150e]', 'border-[#B8860B]');
+                }}
+                onDragLeave={(e) => {
+                  e.currentTarget.classList.remove('bg-[#1a150e]', 'border-[#B8860B]');
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove('bg-[#1a150e]', 'border-[#B8860B]');
+                  const rawData = e.dataTransfer.getData('text/plain');
+                  if (!rawData) return;
+                  try {
+                    const data = JSON.parse(rawData);
+                    if (data.type === 'items' && data.ids) {
+                      handleArchiveItems(data.ids);
+                    }
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
+                className="flex flex-col items-center justify-center p-3 silver-border bg-[#0d0d0f] text-[#8A9196] border-dashed hover:text-[#C8CCD2] cursor-pointer transition-all w-24 h-[58px] shrink-0 border-2"
+                title="Drag items here to Archive them"
+              >
+                <Archive size={18} className="text-[#B8860B]" />
+                <span className="font-meta text-[9px] tracking-[0.2em] mt-1 text-[#C8CCD2]">ARCHIVE</span>
+              </div>
+            )}
+            <div className="flex flex-col gap-1.5 shrink-0">
+              <button onClick={() => setSettingsOpen(true)} className="px-3 py-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-xs tracking-[0.2em] text-[#C8CCD2] flex items-center justify-center gap-2" data-testid="open-settings-btn">
+                <Settings size={14} />
+                SETTINGS
+              </button>
+              <button onClick={resetDailyItems} className="px-3 py-1.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] tracking-[0.15em] text-[#C8CCD2] flex items-center justify-center gap-1.5" data-testid="reset-dailies-btn">
+                <RotateCcw size={10} />
+                RESET DAILY USES
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -949,33 +1082,41 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
       {/* Sidebar + list */}
       <div className="max-w-[96%] w-full mx-auto px-4 sm:px-6 mt-4 flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[200px_1fr] gap-4 overflow-hidden mb-4">
         <aside className="space-y-2 overflow-y-auto custom-scrollbar px-2 py-1 h-full">
-          <div className="w-full gothic-corner relative min-h-[72px]">
-            <div className="absolute inset-0 silver-border bg-[#16161a] font-display text-base tracking-[0.18em] silver-text engraved flex items-center justify-center group overflow-hidden cursor-pointer transition-all duration-300">
-              {/* Default state */}
-              <div className="absolute inset-0 flex items-center justify-center gap-2 transition-all duration-300 opacity-100 group-hover:opacity-0 group-hover:translate-y-[-20px] pointer-events-none">
-                <Plus size={18} />
-                <span>NEW</span>
-              </div>
-
-              {/* Hover state */}
-              <div className="absolute inset-0 flex transition-all duration-300 opacity-0 translate-y-[20px] group-hover:opacity-100 group-hover:translate-y-0">
-                <button
-                  onClick={(e) => { e.stopPropagation(); addNewItem(); }}
-                  className="flex-1 hover:bg-[#1f1f23]/60 transition-colors flex items-center justify-center border-r border-[#2A2A2E]/50 font-display text-[11px] tracking-[0.15em] silver-text hover:text-white focus:outline-none"
-                  data-testid="new-item-btn"
-                >
-                  {side === 'magic' ? 'ABILITY' : 'ITEM'}
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); addNewCollection(); }}
-                  className="flex-1 hover:bg-[#1f1f23]/60 transition-colors flex items-center justify-center font-display text-[11px] tracking-[0.15em] silver-text hover:text-white focus:outline-none"
-                  data-testid="new-collection-btn"
-                >
-                  COLLECTION
-                </button>
+          {activeTab === '__archive__' ? (
+            <div className="w-full gothic-corner relative min-h-[72px] flex items-center justify-center bg-[#1a150e] border border-[#B8860B] text-[#B8860B] select-none">
+              <div className="text-center font-meta text-[10px] tracking-[0.25em] font-semibold py-4 px-2 uppercase">
+                Archived Items
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="w-full gothic-corner relative min-h-[72px]">
+              <div className="absolute inset-0 silver-border bg-[#16161a] font-display text-base tracking-[0.18em] silver-text engraved flex items-center justify-center group overflow-hidden cursor-pointer transition-all duration-300">
+                {/* Default state */}
+                <div className="absolute inset-0 flex items-center justify-center gap-2 transition-all duration-300 opacity-100 group-hover:opacity-0 group-hover:translate-y-[-20px] pointer-events-none">
+                  <Plus size={18} />
+                  <span>NEW</span>
+                </div>
+
+                {/* Hover state */}
+                <div className="absolute inset-0 flex transition-all duration-300 opacity-0 translate-y-[20px] group-hover:opacity-100 group-hover:translate-y-0">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); addNewItem(); }}
+                    className="flex-1 hover:bg-[#1f1f23]/60 transition-colors flex items-center justify-center border-r border-[#2A2A2E]/50 font-display text-[11px] tracking-[0.15em] silver-text hover:text-white focus:outline-none"
+                    data-testid="new-item-btn"
+                  >
+                    {side === 'magic' ? 'ABILITY' : 'ITEM'}
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); addNewCollection(); }}
+                    className="flex-1 hover:bg-[#1f1f23]/60 transition-colors flex items-center justify-center font-display text-[11px] tracking-[0.15em] silver-text hover:text-white focus:outline-none"
+                    data-testid="new-collection-btn"
+                  >
+                    COLLECTION
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           {sideCurrencies.length > 0 && (
             <div className="silver-border bg-[#0a0a0c] p-3 space-y-3" data-testid="currency-strip">
               <div className="font-meta text-[10px] tracking-[0.3em] text-[#6a6c70]">{side === 'magic' ? 'RESERVES' : 'CURRENCY'}</div>
@@ -1084,6 +1225,16 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                   </ContextMenuContent>
                 </ContextMenu>
               ))}
+              {activeTab === '__archive__' && (
+                <TabButton
+                  label="SHARED ARCHIVE"
+                  active={true}
+                  onClick={() => {}}
+                  draggable={false}
+                  testId="tab-archive"
+                  className="!text-[#B8860B] border-b-2 !border-[#B8860B] font-semibold"
+                />
+              )}
               <button
                 onClick={addCategoryTab}
                 className="px-4 pt-2.5 pb-3 font-tab text-sm text-[#6a6c70] hover:text-[#E2E4E9] hover:rotate-90 transition-transform duration-300 flex items-center justify-center shrink-0"
@@ -1182,8 +1333,8 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       onDelete={deleteItem}
                       onDuplicate={duplicateItem}
                       onOpenSettings={openItemSettings}
-                      onDragStart={() => {}}
-                      onDragEnd={() => {}}
+                      onDragStart={() => setIsDragging(true)}
+                      onDragEnd={() => setIsDragging(false)}
                       onDropOnItem={reorderItem}
                       onDropInsideCollection={moveItemToCollection}
                       onRemoveFromCollection={removeItemFromCollection}
@@ -1191,12 +1342,16 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       expandedIds={expandedIds}
                       toggleExpanded={toggleExpanded}
                       canCast={canCast}
-                      draggable
+                      draggable={activeTab !== '__archive__'}
                       showCategoryLabel={activeTab === ALL}
                       listView={listView}
                       fieldColumns={fieldColumns}
                       castInfo={castInfo}
                       onCast={castItem}
+                      isArchive={activeTab === '__archive__'}
+                      archive={state.archive}
+                      onRestore={handleRestoreFromArchive}
+                      onDeletePermanently={handlePermanentDelete}
                     />
                   );
                 })
@@ -1297,7 +1452,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   );
 };
 
-const TabButton = ({ label, active, onClick, onDragOver, onDragLeave, onDrop, onDragStart, onDragEnd, draggable, testId }) => (
+const TabButton = ({ label, active, onClick, onDragOver, onDragLeave, onDrop, onDragStart, onDragEnd, draggable, testId, className }) => (
   <button
     onClick={onClick}
     draggable={draggable}
@@ -1306,7 +1461,7 @@ const TabButton = ({ label, active, onClick, onDragOver, onDragLeave, onDrop, on
     onDragOver={onDragOver}
     onDragLeave={onDragLeave}
     onDrop={onDrop}
-    className={`px-4 pt-2.5 pb-3 font-tab text-xs whitespace-nowrap transition-colors ${active ? 'tab-active' : 'text-[#6a6c70] hover:text-[#C8CCD2]'}`}
+    className={`px-4 pt-2.5 pb-3 font-tab text-xs whitespace-nowrap transition-colors ${active ? 'tab-active' : 'text-[#6a6c70] hover:text-[#C8CCD2]'} ${className || ''}`}
     data-testid={testId}
   >
     {label}

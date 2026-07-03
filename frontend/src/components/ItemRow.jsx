@@ -252,7 +252,8 @@ export const ItemRow = ({
   item, character, expanded, onToggle, onUpdate, onDelete, onDuplicate, onOpenSettings,
   onDragStart, onDragEnd, onDropOnItem, onDropInsideCollection, onRemoveFromCollection,
   draggable, showCategoryLabel, listView, fieldColumns, castInfo, onCast, onSelect, onAddItemToCollection,
-  expandedIds, toggleExpanded, canCast, isLast, selected, selectedIds, onItemClick
+  expandedIds, toggleExpanded, canCast, isLast, selected, selectedIds, onItemClick,
+  isArchive, onRestore, onDeletePermanently, archive
 }) => {
   const tier = character.qualityTiers.find((t) => t.id === item.tierId);
   const category = character.categories.find((c) => c.id === item.categoryId);
@@ -463,71 +464,94 @@ export const ItemRow = ({
               ))}
 
               <div className="flex items-center gap-2 justify-end relative z-10">
-                {castInfo && (
-                  <button
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); onCast?.(item); }}
-                    className={`px-3 py-1 silver-border font-meta text-[10px] tracking-[0.2em] ${castInfo.ok ? 'bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9]' : 'bg-[#2a0d10] text-[#c08080]'}`}
-                    title={`Cost ${castInfo.cost} ${castInfo.cur.name}`}
-                    data-testid={`cast-btn-${item.name}`}
-                  >
-                    CAST {castInfo.cost}
-                  </button>
-                )}
-                {item.isDaily && (
-                  <button
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); onUpdate({ ...item, isDailyUsed: !item.isDailyUsed }); }}
-                    className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
-                    title={item.isDailyUsed ? "Reset daily use" : "Use item / ability for the day"}
-                    data-testid={`daily-use-btn-${item.name}`}
-                  >
-                    {item.isDailyUsed ? <RotateCcw size={10} /> : "USE"}
-                  </button>
-                )}
-                {item.isLimited && (() => {
-                  const maxVal = item.limitedMax ?? 1;
-                  const leftVal = item.limitedUsesLeft ?? maxVal;
-                  const isZero = leftVal <= 0;
-                  return (
+                {isArchive ? (
+                  <>
                     <button
                       onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isZero) {
-                          onUpdate({ ...item, limitedUsesLeft: maxVal });
-                        } else {
-                          onUpdate({ ...item, limitedUsesLeft: leftVal - 1 });
-                        }
-                      }}
-                      className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.1em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
-                      title={isZero ? `Reset charges (max ${maxVal})` : `Use charge (${leftVal}/${maxVal} left)`}
-                      data-testid={`limited-use-btn-${item.name}`}
+                      onClick={(e) => { e.stopPropagation(); onRestore?.(item); }}
+                      className="px-2.5 py-1 silver-border bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] font-meta text-[10px] tracking-[0.15em] h-[22px] flex items-center justify-center"
+                      title="Restore to active inventory"
                     >
-                      {isZero ? <RotateCcw size={10} /> : `USE ${leftVal}`}
+                      RESTORE
                     </button>
-                  );
-                })()}
-                {item.containerId && (
-                  <button
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); onRemoveFromCollection?.(item.id); }}
-                    className="p-1 opacity-40 hover:opacity-100 text-[#8A9196]"
-                    title="Extract from collection"
-                    data-testid={`extract-btn-${item.name}`}
-                  >
-                    <FolderMinus size={12} />
-                  </button>
+                    <button
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); onDeletePermanently?.(item.id); }}
+                      className="p-1 hover:bg-[#2a0d10] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#c08080] h-[22px] w-[22px] flex items-center justify-center shrink-0"
+                      title="Permanently Delete"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {castInfo && (
+                      <button
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); onCast?.(item); }}
+                        className={`px-3 py-1 silver-border font-meta text-[10px] tracking-[0.2em] ${castInfo.ok ? 'bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9]' : 'bg-[#2a0d10] text-[#c08080]'}`}
+                        title={`Cost ${castInfo.cost} ${castInfo.cur.name}`}
+                        data-testid={`cast-btn-${item.name}`}
+                      >
+                        CAST {castInfo.cost}
+                      </button>
+                    )}
+                    {item.isDaily && (
+                      <button
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); onUpdate({ ...item, isDailyUsed: !item.isDailyUsed }); }}
+                        className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
+                        title={item.isDailyUsed ? "Reset daily use" : "Use item / ability for the day"}
+                        data-testid={`daily-use-btn-${item.name}`}
+                      >
+                        {item.isDailyUsed ? <RotateCcw size={10} /> : "USE"}
+                      </button>
+                    )}
+                    {item.isLimited && (() => {
+                      const maxVal = item.limitedMax ?? 1;
+                      const leftVal = item.limitedUsesLeft ?? maxVal;
+                      const isZero = leftVal <= 0;
+                      return (
+                        <button
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isZero) {
+                              onUpdate({ ...item, limitedUsesLeft: maxVal });
+                            } else {
+                              onUpdate({ ...item, limitedUsesLeft: leftVal - 1 });
+                            }
+                          }}
+                          className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.1em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
+                          title={isZero ? `Reset charges (max ${maxVal})` : `Use charge (${leftVal}/${maxVal} left)`}
+                          data-testid={`limited-use-btn-${item.name}`}
+                        >
+                          {isZero ? <RotateCcw size={10} /> : `USE ${leftVal}`}
+                        </button>
+                      );
+                    })()}
+                    {item.containerId && (
+                      <button
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); onRemoveFromCollection?.(item.id); }}
+                        className="p-1 opacity-40 hover:opacity-100 text-[#8A9196]"
+                        title="Extract from collection"
+                        data-testid={`extract-btn-${item.name}`}
+                      >
+                        <FolderMinus size={12} />
+                      </button>
+                    )}
+                    <button
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => { e.stopPropagation(); onOpenSettings(item); }}
+                      className="p-1 text-[#4a4d52] hover:text-[#C8CCD2]"
+                      title="Item settings"
+                      data-testid={`item-settings-btn-list-${item.name}`}
+                    >
+                      <Settings size={12} />
+                    </button>
+                  </>
                 )}
-                <button
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); onOpenSettings(item); }}
-                  className="p-1 text-[#4a4d52] hover:text-[#C8CCD2]"
-                  title="Item settings"
-                  data-testid={`item-settings-btn-list-${item.name}`}
-                >
-                  <Settings size={12} />
-                </button>
               </div>
             </div>
             <div className={`dropdown-grid ${expanded ? 'dropdown-grid-expanded border-b border-[#16161a]' : ''}`}>
@@ -560,6 +584,8 @@ export const ItemRow = ({
                     onDropOnItem={onDropOnItem}
                     onDropInsideCollection={onDropInsideCollection}
                     tierRank={tierRank}
+                    isArchive={isArchive}
+                    archive={archive}
                   />
                 )}
               </div>
@@ -668,71 +694,94 @@ export const ItemRow = ({
                   </div>
 
                   <div className="flex items-center gap-2 justify-end relative z-10">
-                    {castInfo && (
-                      <button
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => { e.stopPropagation(); onCast?.(item); }}
-                        className={`px-3 py-1 silver-border font-meta text-[10px] tracking-[0.2em] ${castInfo.ok ? 'bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9]' : 'bg-[#2a0d10] text-[#c08080]'}`}
-                        title={`Cost ${castInfo.cost} ${castInfo.cur.name}`}
-                        data-testid={`cast-btn-${item.name}`}
-                      >
-                        CAST {castInfo.cost}
-                      </button>
-                    )}
-                    {item.isDaily && (
-                      <button
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => { e.stopPropagation(); onUpdate({ ...item, isDailyUsed: !item.isDailyUsed }); }}
-                        className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
-                        title={item.isDailyUsed ? "Reset daily use" : "Use item / ability for the day"}
-                        data-testid={`daily-use-btn-${item.name}`}
-                      >
-                        {item.isDailyUsed ? <RotateCcw size={10} /> : "USE"}
-                      </button>
-                    )}
-                    {item.isLimited && (() => {
-                      const maxVal = item.limitedMax ?? 1;
-                      const leftVal = item.limitedUsesLeft ?? maxVal;
-                      const isZero = leftVal <= 0;
-                      return (
+                    {isArchive ? (
+                      <>
                         <button
                           onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (isZero) {
-                              onUpdate({ ...item, limitedUsesLeft: maxVal });
-                            } else {
-                              onUpdate({ ...item, limitedUsesLeft: leftVal - 1 });
-                            }
-                          }}
-                          className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.1em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
-                          title={isZero ? `Reset charges (max ${maxVal})` : `Use charge (${leftVal}/${maxVal} left)`}
-                          data-testid={`limited-use-btn-${item.name}`}
+                          onClick={(e) => { e.stopPropagation(); onRestore?.(item); }}
+                          className="px-2.5 py-1 silver-border bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] font-meta text-[10px] tracking-[0.15em] h-[22px] flex items-center justify-center"
+                          title="Restore to active inventory"
                         >
-                          {isZero ? <RotateCcw size={10} /> : `USE ${leftVal}`}
+                          RESTORE
                         </button>
-                      );
-                    })()}
-                    {item.containerId && (
-                      <button
-                        onMouseDown={(e) => e.stopPropagation()}
-                        onClick={(e) => { e.stopPropagation(); onRemoveFromCollection?.(item.id); }}
-                        className="p-1 opacity-40 hover:opacity-100 text-[#8A9196]"
-                        title="Extract from collection"
-                        data-testid={`extract-btn-${item.name}`}
-                      >
-                        <FolderMinus size={12} />
-                      </button>
+                        <button
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); onDeletePermanently?.(item.id); }}
+                          className="p-1 hover:bg-[#2a0d10] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#c08080] h-[22px] w-[22px] flex items-center justify-center shrink-0"
+                          title="Permanently Delete"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {castInfo && (
+                          <button
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); onCast?.(item); }}
+                            className={`px-3 py-1 silver-border font-meta text-[10px] tracking-[0.2em] ${castInfo.ok ? 'bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9]' : 'bg-[#2a0d10] text-[#c08080]'}`}
+                            title={`Cost ${castInfo.cost} ${castInfo.cur.name}`}
+                            data-testid={`cast-btn-${item.name}`}
+                          >
+                            CAST {castInfo.cost}
+                          </button>
+                        )}
+                        {item.isDaily && (
+                          <button
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); onUpdate({ ...item, isDailyUsed: !item.isDailyUsed }); }}
+                            className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
+                            title={item.isDailyUsed ? "Reset daily use" : "Use item / ability for the day"}
+                            data-testid={`daily-use-btn-${item.name}`}
+                          >
+                            {item.isDailyUsed ? <RotateCcw size={10} /> : "USE"}
+                          </button>
+                        )}
+                        {item.isLimited && (() => {
+                          const maxVal = item.limitedMax ?? 1;
+                          const leftVal = item.limitedUsesLeft ?? maxVal;
+                          const isZero = leftVal <= 0;
+                          return (
+                            <button
+                              onMouseDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isZero) {
+                                  onUpdate({ ...item, limitedUsesLeft: maxVal });
+                                } else {
+                                  onUpdate({ ...item, limitedUsesLeft: leftVal - 1 });
+                                }
+                              }}
+                              className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.1em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
+                              title={isZero ? `Reset charges (max ${maxVal})` : `Use charge (${leftVal}/${maxVal} left)`}
+                              data-testid={`limited-use-btn-${item.name}`}
+                            >
+                              {isZero ? <RotateCcw size={10} /> : `USE ${leftVal}`}
+                            </button>
+                          );
+                        })()}
+                        {item.containerId && (
+                          <button
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); onRemoveFromCollection?.(item.id); }}
+                            className="p-1 opacity-40 hover:opacity-100 text-[#8A9196]"
+                            title="Extract from collection"
+                            data-testid={`extract-btn-${item.name}`}
+                          >
+                            <FolderMinus size={12} />
+                          </button>
+                        )}
+                        <button
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); onOpenSettings(item); }}
+                          className="p-1 text-[#4a4d52] hover:text-[#C8CCD2]"
+                          title="Item settings"
+                          data-testid={`item-settings-btn-${item.name}`}
+                        >
+                          <Settings size={12} />
+                        </button>
+                      </>
                     )}
-                    <button
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); onOpenSettings(item); }}
-                      className="p-1 text-[#4a4d52] hover:text-[#C8CCD2]"
-                      title="Item settings"
-                      data-testid={`item-settings-btn-${item.name}`}
-                    >
-                      <Settings size={12} />
-                    </button>
                   </div>
                 </div>
               </TooltipTrigger>
@@ -772,6 +821,8 @@ export const ItemRow = ({
                   onDropOnItem={onDropOnItem}
                   onDropInsideCollection={onDropInsideCollection}
                   tierRank={tierRank}
+                  isArchive={isArchive}
+                  archive={archive}
                 />
               )}
             </div>
@@ -788,7 +839,7 @@ const ItemDropdown = ({
   onDelete, onDuplicate, onOpenSettings, onCast, onRemoveFromCollection, onAddItemToCollection,
   expandedIds, toggleExpanded, canCast, listView, fieldColumns,
   onDragStart, onDragEnd, onDropOnItem, onDropInsideCollection, tierRank,
-  activeFieldIds, activeFields
+  activeFieldIds, activeFields, isArchive, archive
 }) => {
   const tier = character.qualityTiers.find((t) => t.id === item.tierId);
   const descField = character.infoFields.find((f) => f.name.toLowerCase() === 'description');
@@ -903,21 +954,24 @@ const ItemDropdown = ({
       {/* Contained Items Section (only if collection) */}
       {item.isCollection && (
         <div className="mt-4 -mx-12 -mb-4 relative" onClick={(e) => e.stopPropagation()}>
-          <div className="flex justify-start mb-2 px-12">
-            <button
-              onClick={() => onAddItemToCollection?.(item.id)}
-              className="flex items-center gap-1.5 px-3 py-1.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] tracking-[0.15em] text-[#C8CCD2]"
-              data-testid={`add-to-collection-btn-${item.name}`}
-            >
-              <Plus size={10} /> ADD ITEM TO COLLECTION
-            </button>
-          </div>
+          {!isArchive && (
+            <div className="flex justify-start mb-2 px-12">
+              <button
+                onClick={() => onAddItemToCollection?.(item.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] tracking-[0.15em] text-[#C8CCD2]"
+                data-testid={`add-to-collection-btn-${item.name}`}
+              >
+                <Plus size={10} /> ADD ITEM TO COLLECTION
+              </button>
+            </div>
+          )}
           {(() => {
-            const subItems = character.items.filter(it => it.containerId === item.id);
+            const itemsToFilter = isArchive ? (archive || []) : (character.items || []);
+            const subItems = itemsToFilter.filter(it => it.containerId === item.id);
             if (subItems.length === 0) {
               return (
                 <div className="font-meta text-[10px] text-[#4a4d52] italic py-1 px-12">
-                  No items in this collection. Drag items here to store them.
+                  No items in this collection.
                 </div>
               );
             }
@@ -944,7 +998,7 @@ const ItemDropdown = ({
                       onDropInsideCollection={onDropInsideCollection}
                       onRemoveFromCollection={onRemoveFromCollection}
                       onAddItemToCollection={onAddItemToCollection}
-                      draggable={true}
+                      draggable={!isArchive}
                       showCategoryLabel={false}
                       listView={listView}
                       fieldColumns={fieldColumns}
@@ -953,6 +1007,10 @@ const ItemDropdown = ({
                       expandedIds={expandedIds}
                       toggleExpanded={toggleExpanded}
                       canCast={canCast}
+                      isArchive={isArchive}
+                      archive={archive}
+                      onRestore={onRestore}
+                      onDeletePermanently={onDeletePermanently}
                     />
                   );
                 })}

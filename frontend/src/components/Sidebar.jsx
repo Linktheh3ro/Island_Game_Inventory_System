@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   Folder, FolderOpen, FolderPlus, User, UserPlus, Briefcase, ChevronRight, ChevronDown,
-  Trash2, Pencil, Copy, ChevronsLeft, Settings
+  Trash2, Pencil, Copy, ChevronsLeft, Settings, Archive
 } from 'lucide-react';
 import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator
@@ -11,6 +11,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
 
 export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCollapse }) => {
   const [renamingId, setRenamingId] = useState(null); // 'folder-<id>' | 'char-<id>' | 'inv-<id>'
@@ -752,7 +753,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
             >
               <FolderPlus size={12} />
             </button>
-            <button
+             <button
               onClick={() => addCharacter(null)}
               className="p-1 hover:bg-[#16161a] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#C8CCD2]"
               title="New Character"
@@ -790,6 +791,27 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
               CODEX EMPTY — CLICK ICONS ABOVE TO CREATE A FOLDER OR CHARACTER
             </div>
           )}
+        </div>
+
+        {/* Sidebar Footer */}
+        <div className="p-3 border-t border-[#1f1f23] flex items-center justify-between bg-[#070709] shrink-0">
+          <div className="font-meta text-[10px] tracking-[0.2em] text-[#4a4d52] uppercase select-none">
+            Codex Vault
+          </div>
+          <button
+            onClick={() => {
+              setState(s => ({ ...s, activeTab: '__archive__' }));
+              setView('inventory');
+            }}
+            className={`p-1.5 hover:bg-[#16161a] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#C8CCD2] flex items-center gap-1.5 px-2.5 font-meta text-[10px] tracking-[0.1em] transition-all ${
+              state.activeTab === '__archive__' && view === 'inventory' ? 'bg-[#1a1a20]/75 border-l-2 border-[#C8CCD2] text-[#E2E4E9]' : ''
+            }`}
+            title="Open Shared Archive"
+            data-testid="archive-btn"
+          >
+            <Archive size={12} className="text-[#B8860B]" />
+            ARCHIVE
+          </button>
         </div>
       </div>
       

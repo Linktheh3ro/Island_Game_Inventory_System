@@ -172,6 +172,7 @@ export const normalizeState = (state) => {
     characterOrder: (base.characterOrder || ids).filter((id) => characters[id]),
     activeCharacterId: activeCharId,
     activeInventoryId,
+    archive: Array.isArray(base.archive) ? base.archive : [],
   };
 };
 
