@@ -203,6 +203,44 @@ export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpda
             </Labeled>
           )}
 
+          {draft.isLimited ? (
+            <Labeled label="Limited Use">
+              <div className="flex items-center gap-2">
+                <span className="font-meta text-xs text-[#E2E4E9] select-none">Max Charges:</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={draft.limitedMax ?? 3}
+                  onChange={(e) => {
+                    const maxVal = Math.max(1, parseInt(e.target.value, 10) || 1);
+                    const currentLeft = draft.limitedUsesLeft ?? maxVal;
+                    apply({
+                      ...draft,
+                      limitedMax: maxVal,
+                      limitedUsesLeft: Math.min(maxVal, currentLeft)
+                    });
+                  }}
+                  className="w-16 bg-[#0a0a0c] silver-border px-2 py-1 font-meta text-xs text-[#C8CCD2] text-center focus:outline-none focus:border-[#6a6c70]"
+                  data-testid="item-dialog-limited-max"
+                />
+                <button
+                  onClick={() => apply({ ...draft, isLimited: false, limitedMax: undefined, limitedUsesLeft: undefined })}
+                  className="p-2 silver-border bg-[#0d0d0f] hover:bg-[#2a0d10] text-[#8A9196] hover:text-[#c08080]"
+                  title="Remove limited status"
+                  data-testid="item-dialog-remove-limited"
+                ><X size={12} /></button>
+              </div>
+            </Labeled>
+          ) : (
+            <Labeled label="Limited Use">
+              <button
+                onClick={() => apply({ ...draft, isLimited: true, limitedMax: 3, limitedUsesLeft: 3 })}
+                className="p-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[10px] tracking-[0.2em] text-[#8A9196] flex items-center gap-1"
+                data-testid="item-dialog-make-limited"
+              ><Plus size={12} /> MAKE LIMITED USE</button>
+            </Labeled>
+          )}
+
           <div className="silver-divider my-1" />
 
           <div className="font-meta text-[10px] tracking-[0.3em] text-[#6a6c70]">ACTIVE INFO FIELDS</div>

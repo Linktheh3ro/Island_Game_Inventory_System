@@ -454,9 +454,18 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   };
 
   const resetDailyItems = () => {
-    const nextItems = character.items.map(it => it.isDaily ? { ...it, isDailyUsed: false } : it);
+    const nextItems = character.items.map(it => {
+      let nextIt = { ...it };
+      if (it.isDaily) {
+        nextIt.isDailyUsed = false;
+      }
+      if (it.isLimited) {
+        nextIt.limitedUsesLeft = it.limitedMax ?? 1;
+      }
+      return nextIt;
+    });
     updateCharacter({ ...character, items: nextItems });
-    toast.success("Reset all daily items and abilities");
+    toast.success("Reset all daily and limited use items");
   };
 
   // Cast: find first currency on current side this item has Cost for; deduct or flash

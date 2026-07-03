@@ -22,8 +22,9 @@ function App() {
       const raw = decodeURIComponent(hash.slice(1));
       decodeShareRemote(raw).then((res) => {
         if (res.ok) {
-          replaceState(res.state);
+          replaceState(res.state, true);
           toast.success('Inventory imported from link');
+          setView('inventory');
           // Clean the URL so refresh doesn't re-import
           history.replaceState(null, '', window.location.pathname + window.location.search);
         } else {
@@ -116,6 +117,8 @@ function App() {
           save={save}
           sidebarCollapsed={sidebarCollapsed}
           onExpandSidebar={() => setSidebarCollapsed(false)}
+          view={view}
+          setView={setView}
         />
 
         <main className={`flex-1 flex flex-col min-h-0 ${view === 'roster' || !activeCharacter ? 'overflow-y-auto' : 'overflow-hidden'}`}>

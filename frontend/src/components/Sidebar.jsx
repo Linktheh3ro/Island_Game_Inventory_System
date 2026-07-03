@@ -7,12 +7,18 @@ import {
   ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger, ContextMenuSeparator
 } from '@/components/ui/context-menu';
 import { createFolder, createCharacter, uid } from '@/lib/defaults';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 
 export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCollapse }) => {
   const [renamingId, setRenamingId] = useState(null); // 'folder-<id>' | 'char-<id>' | 'inv-<id>'
   const [expandedFolders, setExpandedFolders] = useState(new Set());
   const [expandedChars, setExpandedChars] = useState(new Set());
   const [draggedOverId, setDraggedOverId] = useState(null); // 'folder-<id>' | 'char-<id>' | 'inv-<id>' | 'sidebar-body'
+  const [charToDelete, setCharToDelete] = useState(null);
+  const [invToDelete, setInvToDelete] = useState(null); // { charId, invId }
 
   useEffect(() => {
     const handleGlobalDragEnd = () => {
@@ -632,7 +638,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
                       <Copy size={12} className="mr-2 text-[#8A9196]" /> Duplicate
                     </ContextMenuItem>
                     <ContextMenuSeparator className="bg-[#1f1f23]" />
-                    <ContextMenuItem onClick={() => deleteCharacter(c.id)} className="font-meta text-xs text-[#c08080] hover:!bg-[#2a0d10]">
+                     <ContextMenuItem onClick={() => setCharToDelete(c.id)} className="font-meta text-xs text-[#c08080] hover:!bg-[#2a0d10]">
                       <Trash2 size={12} className="mr-2" /> Delete Character
                     </ContextMenuItem>
                   </ContextMenuContent>
@@ -700,7 +706,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
                             {(c.inventories || []).length > 1 && (
                               <>
                                 <ContextMenuSeparator className="bg-[#1f1f23]" />
-                                <ContextMenuItem onClick={() => deleteInventory(c.id, inv.id)} className="font-meta text-xs text-[#c08080] hover:!bg-[#2a0d10]">
+                                <ContextMenuItem onClick={() => setInvToDelete({ charId: c.id, invId: inv.id })} className="font-meta text-xs text-[#c08080] hover:!bg-[#2a0d10]">
                                   <Trash2 size={12} className="mr-2" /> Delete Inventory
                                 </ContextMenuItem>
                               </>
@@ -786,6 +792,36 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
           )}
         </div>
       </div>
+      
+      <AlertDialog open={charToDelete !== null} onOpenChange={(open) => { if (!open) setCharToDelete(null); }}>
+        <AlertDialogContent className="bg-[#0a0a0c] silver-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display silver-text">Delete Character</AlertDialogTitle>
+            <AlertDialogDescription className="font-item text-[#B0B5B9]">
+              Are you sure you want to delete <strong className="text-white">“{charToDelete ? (characters[charToDelete]?.name || 'this character') : ''}”</strong>? This will permanently remove the character and their entire inventory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-[#0d0d0f] silver-border text-[#C8CCD2]" onClick={() => setCharToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-[#3a0a12] hover:bg-[#5a1018] text-[#E2E4E9]" onClick={() => { if (charToDelete) { deleteCharacter(charToDelete); setCharToDelete(null); } }}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={invToDelete !== null} onOpenChange={(open) => { if (!open) setInvToDelete(null); }}>
+        <AlertDialogContent className="bg-[#0a0a0c] silver-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display silver-text">Delete Inventory</AlertDialogTitle>
+            <AlertDialogDescription className="font-item text-[#B0B5B9]">
+              Are you sure you want to delete the inventory <strong className="text-white">“{invToDelete ? (characters[invToDelete.charId]?.inventories?.find(i => i.id === invToDelete.invId)?.name || 'this inventory') : ''}”</strong>? Any items inside will be moved to the first available inventory.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-[#0d0d0f] silver-border text-[#C8CCD2]" onClick={() => setInvToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-[#3a0a12] hover:bg-[#5a1018] text-[#E2E4E9]" onClick={() => { if (invToDelete) { deleteInventory(invToDelete.charId, invToDelete.invId); setInvToDelete(null); } }}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 };

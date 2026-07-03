@@ -485,6 +485,29 @@ export const ItemRow = ({
                     {item.isDailyUsed ? <RotateCcw size={10} /> : "USE"}
                   </button>
                 )}
+                {item.isLimited && (() => {
+                  const maxVal = item.limitedMax ?? 1;
+                  const leftVal = item.limitedUsesLeft ?? maxVal;
+                  const isZero = leftVal <= 0;
+                  return (
+                    <button
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isZero) {
+                          onUpdate({ ...item, limitedUsesLeft: maxVal });
+                        } else {
+                          onUpdate({ ...item, limitedUsesLeft: leftVal - 1 });
+                        }
+                      }}
+                      className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.1em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
+                      title={isZero ? `Reset charges (max ${maxVal})` : `Use charge (${leftVal}/${maxVal} left)`}
+                      data-testid={`limited-use-btn-${item.name}`}
+                    >
+                      {isZero ? <RotateCcw size={10} /> : `USE ${leftVal}`}
+                    </button>
+                  );
+                })()}
                 {item.containerId && (
                   <button
                     onMouseDown={(e) => e.stopPropagation()}
@@ -667,6 +690,29 @@ export const ItemRow = ({
                         {item.isDailyUsed ? <RotateCcw size={10} /> : "USE"}
                       </button>
                     )}
+                    {item.isLimited && (() => {
+                      const maxVal = item.limitedMax ?? 1;
+                      const leftVal = item.limitedUsesLeft ?? maxVal;
+                      const isZero = leftVal <= 0;
+                      return (
+                        <button
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isZero) {
+                              onUpdate({ ...item, limitedUsesLeft: maxVal });
+                            } else {
+                              onUpdate({ ...item, limitedUsesLeft: leftVal - 1 });
+                            }
+                          }}
+                          className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.1em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
+                          title={isZero ? `Reset charges (max ${maxVal})` : `Use charge (${leftVal}/${maxVal} left)`}
+                          data-testid={`limited-use-btn-${item.name}`}
+                        >
+                          {isZero ? <RotateCcw size={10} /> : `USE ${leftVal}`}
+                        </button>
+                      );
+                    })()}
                     {item.containerId && (
                       <button
                         onMouseDown={(e) => e.stopPropagation()}

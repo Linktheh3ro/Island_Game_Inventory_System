@@ -1,4 +1,4 @@
-import { SCHEMA_VERSION, normalizeState } from './defaults';
+import { SCHEMA_VERSION, normalizeState, normalizeCharacter } from './defaults';
 import LZString from 'lz-string';
 import { toast } from 'sonner';
 
@@ -39,7 +39,7 @@ export const encodeShare = (state) => {
 // Returns { ok, state, error }
 export const decodeShare = (raw) => {
   if (!raw) return { ok: false, error: 'Empty input' };
-  const trimmed = raw.trim();
+  const trimmed = raw.replace(/^\ufeff/, '').trim();
   let body = trimmed;
 
   try {
@@ -90,6 +90,12 @@ export const decodeShare = (raw) => {
 // Forward migration: keep adding cases as schema evolves.
 const migrate = (s) => {
   if (!s || typeof s !== 'object') throw new Error('bad');
+  if (s.type === 'single-character') {
+    return {
+      ...s,
+      character: normalizeCharacter(s.character)
+    };
+  }
   const v = s.schemaVersion ?? 1;
   if (v > SCHEMA_VERSION) {
     return normalizeState({ ...s, schemaVersion: SCHEMA_VERSION });
@@ -97,7 +103,14 @@ const migrate = (s) => {
   return normalizeState(s);
 };
 
-const API_URL = (typeof process !== 'undefined' && process.env && process.env.REACT_APP_API_URL) || 'http://localhost:8000/api';
+const getApiUrl = () => {
+  if (typeof process !== 'undefined' && process.env) {
+    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+    if (process.env.REACT_APP_BACKEND_URL) return `${process.env.REACT_APP_BACKEND_URL}/api`;
+  }
+  return 'http://localhost:8000/api';
+};
+const API_URL = getApiUrl();
 
 const fetchWithTimeout = async (resource, options = {}) => {
   const { timeout = 1500 } = options;
@@ -160,7 +173,7 @@ export const encodeShareRemote = async (state) => {
 export const decodeShareRemote = async (raw) => {
   if (!raw) return { ok: false, error: 'Empty input' };
   
-  let cleanRaw = raw.trim();
+  let cleanRaw = raw.replace(/^\ufeff/, '').trim();
   if ((cleanRaw.startsWith('"') && cleanRaw.endsWith('"')) ||
       (cleanRaw.startsWith("'") && cleanRaw.endsWith("'")) ||
       (cleanRaw.startsWith("`") && cleanRaw.endsWith("`"))) {

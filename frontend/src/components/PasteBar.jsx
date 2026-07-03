@@ -3,7 +3,7 @@ import { Copy, Check, Upload, Download, Link, PanelLeftOpen, Save } from 'lucide
 import { encodeShare, encodeShareRemote, decodeShareRemote, manualSaveRemote } from '@/lib/share';
 import { toast } from 'sonner';
 
-export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSidebar, replaceState }) => {
+export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSidebar, replaceState, view, setView }) => {
   const [input, setInput] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -26,9 +26,10 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
     if (!trimmed) return toast.error('Paste a share code first');
     const res = await decodeShareRemote(trimmed);
     if (!res.ok) return toast.error(res.error || 'Invalid code');
-    replaceState(res.state);
+    replaceState(res.state, view === 'roster');
     setInput('');
     toast.success('Inventory imported');
+    if (view === 'roster') setView?.('inventory');
     save?.();
   };
 
@@ -70,8 +71,9 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
     const text = await file.text();
     const res = await decodeShareRemote(text);
     if (!res.ok) return toast.error(res.error || 'Invalid file');
-    replaceState(res.state);
+    replaceState(res.state, view === 'roster');
     toast.success('Inventory imported');
+    if (view === 'roster') setView?.('inventory');
     e.target.value = '';
   };
 

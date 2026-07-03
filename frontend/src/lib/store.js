@@ -50,7 +50,7 @@ export const useInventoryStore = () => {
     return true;
   }, []);
 
-  const replaceState = useCallback((next) => {
+  const replaceState = useCallback((next, forceNew = false) => {
     history.current.past.push(stateRef.current);
     if (history.current.past.length > HISTORY_LIMIT) history.current.past.shift();
     history.current.future = [];
@@ -59,7 +59,44 @@ export const useInventoryStore = () => {
       const importedChar = next.character;
       _setState((cur) => {
         const activeCharId = cur.activeCharacterId;
-        if (!activeCharId) return cur;
+        if (forceNew || !activeCharId) {
+          const newCharId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+          const newChar = {
+            ...importedChar,
+            id: newCharId,
+            parentId: cur.activeCharacterId ? (cur.characters[cur.activeCharacterId]?.parentId ?? null) : null
+          };
+          const invIdMap = {};
+          newChar.inventories = (importedChar.inventories || []).map(inv => {
+            const newId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+            invIdMap[inv.id] = newId;
+            return { ...inv, id: newId };
+          });
+          const itemIdMap = {};
+          const nextItems = (importedChar.items || []).map(item => {
+            const newId = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+            itemIdMap[item.id] = newId;
+            return {
+              ...item,
+              id: newId,
+              inventoryId: invIdMap[item.inventoryId] || newChar.inventories[0]?.id || null
+            };
+          });
+          newChar.items = nextItems.map(item => ({
+            ...item,
+            containerId: item.containerId ? (itemIdMap[item.containerId] || item.containerId) : null
+          }));
+          return {
+            ...cur,
+            activeCharacterId: newCharId,
+            activeInventoryId: newChar.inventories[0]?.id || null,
+            characters: {
+              ...cur.characters,
+              [newCharId]: newChar
+            },
+            characterOrder: [...(cur.characterOrder || []), newCharId]
+          };
+        }
         const updatedChar = {
           ...cur.characters[activeCharId],
           name: importedChar.name,
