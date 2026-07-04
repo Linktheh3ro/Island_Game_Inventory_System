@@ -800,12 +800,24 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
           </div>
           <button
             onClick={() => {
-              setState(s => ({ ...s, activeTab: '__archive__' }));
+              const charIds = Object.keys(state.characters || {});
+              if (charIds.length === 0) {
+                toast.error("Create a character first to view the archive.");
+                return;
+              }
+              // If no active character, auto-select the first one
+              let charId = state.activeCharacterId;
+              if (!charId || !state.characters[charId]) {
+                charId = charIds[0];
+                const char = state.characters[charId];
+                const firstInv = char?.inventories?.[0]?.id || null;
+                setState(s => ({ ...s, activeCharacterId: charId, activeInventoryId: firstInv, activeTab: '__archive__' }));
+              } else {
+                setState(s => ({ ...s, activeTab: '__archive__' }));
+              }
               setView('inventory');
             }}
-            className={`p-1.5 hover:bg-[#16161a] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#C8CCD2] flex items-center gap-1.5 px-2.5 font-meta text-[10px] tracking-[0.1em] transition-all ${
-              state.activeTab === '__archive__' && view === 'inventory' ? 'bg-[#1a1a20]/75 border-l-2 border-[#C8CCD2] text-[#E2E4E9]' : ''
-            }`}
+            className="p-1.5 hover:bg-[#16161a] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#C8CCD2] flex items-center gap-1.5 px-2.5 font-meta text-[10px] tracking-[0.1em] transition-all"
             title="Open Shared Archive"
             data-testid="archive-btn"
           >

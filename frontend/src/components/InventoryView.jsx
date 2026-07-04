@@ -124,13 +124,18 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   const [isDragOverSection, setIsDragOverSection] = useState(false);
 
   useEffect(() => {
-    const handleDragEnd = () => {
+    const resetDragging = () => {
       setIsDragging(false);
       setIsDragOverSection(false);
     };
-    window.addEventListener('dragend', handleDragEnd);
+    // dragend fires when the drag source element is released
+    // mouseup is a fallback for cases where dragend is swallowed
+    // (e.g. when the dragged item unmounts on drop before dragend fires)
+    window.addEventListener('dragend', resetDragging);
+    window.addEventListener('mouseup', resetDragging);
     return () => {
-      window.removeEventListener('dragend', handleDragEnd);
+      window.removeEventListener('dragend', resetDragging);
+      window.removeEventListener('mouseup', resetDragging);
     };
   }, []);
 
@@ -144,6 +149,18 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Sync external archive trigger from Sidebar
+  useEffect(() => {
+    if (state.activeTab === '__archive__') {
+      setActiveTab('__archive__');
+      // Clear the external flag so it doesn't re-trigger
+      setState(s => {
+        const { activeTab: _removed, ...rest } = s;
+        return rest;
+      });
+    }
+  }, [state.activeTab, setState]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -363,7 +380,25 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
 
   const openItemSettings = (it) => { setEditingItem(it); setItemDialogOpen(true); };
 
-  const onItemDialogSave = (next) => updateItem(next);
+  // Archive-specific update: writes edits back to state.archive instead of character.items
+  const updateArchiveItem = (next) => {
+    setState(s => ({
+      ...s,
+      archive: (s.archive || []).map(it => it.id === next.id ? next : it)
+    }));
+  };
+
+  const openArchiveItemSettings = (it) => { setEditingItem(it); setItemDialogOpen(true); };
+
+  const isViewingArchive = activeTab === '__archive__';
+
+  const onItemDialogSave = (next) => {
+    if (isViewingArchive) {
+      updateArchiveItem(next);
+    } else {
+      updateItem(next);
+    }
+  };
 
   const uploadAvatar = async (e) => {
     const file = e.target.files?.[0];
@@ -501,19 +536,20 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   };
 
   const handleRestoreFromArchive = (item) => {
-    const activeCharId = state.activeCharacterId;
-    const activeInvId = state.activeInventoryId;
-    if (!activeCharId || !activeInvId) {
-      toast.error("Please open a character inventory to restore items.");
-      return;
-    }
+    // Use character.id directly — InventoryView always has the current character in scope.
+    // This avoids stale closure issues with state.activeCharacterId.
+    const charId = character.id;
     setState(s => {
-      const char = s.characters[activeCharId];
+      const char = s.characters[charId];
       if (!char) return s;
-      
+
+      // Pick active inventory from fresh state, fall back to first inventory
+      const invId = s.activeInventoryId || char?.inventories?.[0]?.id;
+      if (!invId) return s; // no inventory to restore into, bail silently
+
       const toRestore = [item];
-      let archive = s.archive || [];
-      let toCheck = [item.id];
+      const archive = s.archive || [];
+      const toCheck = [item.id];
       while (toCheck.length > 0) {
         const parentId = toCheck.pop();
         const children = archive.filter(it => it.containerId === parentId);
@@ -526,25 +562,22 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
       }
 
       const nextArchive = archive.filter(it => !toRestore.some(x => x.id === it.id));
-      
-      const restoredItems = toRestore.map((x) => {
-        return {
-          ...x,
-          inventoryId: activeInvId,
-          containerId: x.id === item.id ? null : x.containerId
-        };
-      });
+      const restoredItems = toRestore.map(x => ({
+        ...x,
+        inventoryId: invId,
+        containerId: x.id === item.id ? null : x.containerId,
+      }));
 
       return {
         ...s,
         archive: nextArchive,
         characters: {
           ...s.characters,
-          [activeCharId]: {
+          [charId]: {
             ...char,
-            items: [...(char.items || []), ...restoredItems]
-          }
-        }
+            items: [...(char.items || []), ...restoredItems],
+          },
+        },
       };
     });
     toast.success(`Restored “${item.name}”`);
@@ -802,32 +835,82 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
 
     if (draggedItemIds.length === 0) return;
 
-    const idsSet = new Set(draggedItemIds);
-    let extractedCount = 0;
+    // Check if any of the dragged IDs are archive items (not in character.items)
+    const archiveIds = draggedItemIds.filter(id => !(character.items || []).some(it => it.id === id));
+    const regularIds = draggedItemIds.filter(id => !archiveIds.includes(id));
 
-    const nextItems = character.items.map((it) => {
-      if (idsSet.has(it.id)) {
-        const next = { ...it };
-        if (next.containerId) {
-          next.containerId = null;
-          extractedCount++;
+    // Restore archive items into active inventory under the dropped category
+    if (archiveIds.length > 0) {
+      const resolvedCategoryId = categoryId === ALL ? sideCategories[0]?.id : categoryId;
+      setState(s => {
+        const char = s.characters[character.id];
+        if (!char) return s;
+        const invId = s.activeInventoryId || char?.inventories?.[0]?.id;
+        if (!invId) return s;
+
+        // Collect archive items + their nested children
+        const archive = s.archive || [];
+        const toRestore = [];
+        const toCheck = [...archiveIds];
+        const seen = new Set();
+        while (toCheck.length > 0) {
+          const checkId = toCheck.pop();
+          if (seen.has(checkId)) continue;
+          seen.add(checkId);
+          const archiveItem = archive.find(it => it.id === checkId);
+          if (archiveItem) {
+            toRestore.push(archiveItem);
+            // Also collect children
+            archive.filter(it => it.containerId === checkId).forEach(child => toCheck.push(child.id));
+          }
         }
-        if (categoryId !== ALL) {
-          next.categoryId = categoryId;
+
+        const nextArchive = archive.filter(it => !toRestore.some(x => x.id === it.id));
+        const restoredItems = toRestore.map(x => ({
+          ...x,
+          inventoryId: invId,
+          categoryId: archiveIds.includes(x.id) && resolvedCategoryId ? resolvedCategoryId : x.categoryId,
+          containerId: archiveIds.includes(x.id) ? null : x.containerId,
+        }));
+
+        return {
+          ...s,
+          archive: nextArchive,
+          characters: {
+            ...s.characters,
+            [character.id]: {
+              ...char,
+              items: [...(char.items || []), ...restoredItems],
+            },
+          },
+        };
+      });
+      const catName = sideCategories.find(c => c.id === (categoryId === ALL ? sideCategories[0]?.id : categoryId))?.name;
+      toast.success(`Restored ${archiveIds.length} item(s)${catName ? ` to "${catName}"` : ''}`);
+      // Switch to the target category tab so user can see the restored item
+      if (categoryId !== ALL) setActiveTab(categoryId);
+      else setActiveTab(ALL);
+    }
+
+    // Handle regular (non-archive) items as before
+    if (regularIds.length > 0) {
+      const idsSet = new Set(regularIds);
+      let extractedCount = 0;
+      const nextItems = character.items.map((it) => {
+        if (idsSet.has(it.id)) {
+          const next = { ...it };
+          if (next.containerId) { next.containerId = null; extractedCount++; }
+          if (categoryId !== ALL) next.categoryId = categoryId;
+          return next;
         }
-        return next;
-      }
-      return it;
-    });
-
-    updateCharacter({ ...character, items: nextItems });
-
-    if (extractedCount > 0) {
-      toast.success(extractedCount === 1 ? "Extracted 1 item from collection" : `Extracted ${extractedCount} items from collections`);
-    } else {
-      const targetCat = character.categories.find(c => c.id === categoryId);
-      if (targetCat) {
-        toast.success(`Moved items to "${targetCat.name}"`);
+        return it;
+      });
+      updateCharacter({ ...character, items: nextItems });
+      if (extractedCount > 0) {
+        toast.success(extractedCount === 1 ? "Extracted 1 item from collection" : `Extracted ${extractedCount} items from collections`);
+      } else {
+        const targetCat = character.categories.find(c => c.id === categoryId);
+        if (targetCat) toast.success(`Moved items to "${targetCat.name}"`);
       }
     }
   };
@@ -975,6 +1058,9 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                 onDrop={(e) => {
                   e.preventDefault();
                   e.currentTarget.classList.remove('bg-[#1a150e]', 'border-[#B8860B]');
+                  // Reset immediately — dragend may not fire when the source unmounts on drop
+                  setIsDragging(false);
+                  setIsDragOverSection(false);
                   const rawData = e.dataTransfer.getData('text/plain');
                   if (!rawData) return;
                   try {
@@ -1328,11 +1414,11 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       selectedIds={selectedIds}
                       onItemClick={handleItemClick}
                       onToggle={() => toggleExpanded(it.id)}
-                      onUpdate={updateItem}
+                      onUpdate={isViewingArchive ? updateArchiveItem : updateItem}
                       onSelect={() => {}}
                       onDelete={deleteItem}
                       onDuplicate={duplicateItem}
-                      onOpenSettings={openItemSettings}
+                      onOpenSettings={isViewingArchive ? openArchiveItemSettings : openItemSettings}
                       onDragStart={() => setIsDragging(true)}
                       onDragEnd={() => setIsDragging(false)}
                       onDropOnItem={reorderItem}
@@ -1342,7 +1428,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       expandedIds={expandedIds}
                       toggleExpanded={toggleExpanded}
                       canCast={canCast}
-                      draggable={activeTab !== '__archive__'}
+                      draggable={true}
                       showCategoryLabel={activeTab === ALL}
                       listView={listView}
                       fieldColumns={fieldColumns}
@@ -1350,7 +1436,6 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       onCast={castItem}
                       isArchive={activeTab === '__archive__'}
                       archive={state.archive}
-                      onRestore={handleRestoreFromArchive}
                       onDeletePermanently={handlePermanentDelete}
                     />
                   );

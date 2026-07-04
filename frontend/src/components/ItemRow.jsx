@@ -466,14 +466,7 @@ export const ItemRow = ({
               <div className="flex items-center gap-2 justify-end relative z-10">
                 {isArchive ? (
                   <>
-                    <button
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); onRestore?.(item); }}
-                      className="px-2.5 py-1 silver-border bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] font-meta text-[10px] tracking-[0.15em] h-[22px] flex items-center justify-center"
-                      title="Restore to active inventory"
-                    >
-                      RESTORE
-                    </button>
+                    <span className="font-meta text-[9px] tracking-[0.1em] text-[#4a4d52] italic select-none hidden sm:inline">drag to category to restore</span>
                     <button
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onDeletePermanently?.(item.id); }}
@@ -586,6 +579,8 @@ export const ItemRow = ({
                     tierRank={tierRank}
                     isArchive={isArchive}
                     archive={archive}
+                    onRestore={onRestore}
+                    onDeletePermanently={onDeletePermanently}
                   />
                 )}
               </div>
@@ -696,14 +691,7 @@ export const ItemRow = ({
                   <div className="flex items-center gap-2 justify-end relative z-10">
                     {isArchive ? (
                       <>
-                        <button
-                          onMouseDown={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); onRestore?.(item); }}
-                          className="px-2.5 py-1 silver-border bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] font-meta text-[10px] tracking-[0.15em] h-[22px] flex items-center justify-center"
-                          title="Restore to active inventory"
-                        >
-                          RESTORE
-                        </button>
+                        <span className="font-meta text-[9px] tracking-[0.1em] text-[#4a4d52] italic select-none hidden sm:inline">drag to category to restore</span>
                         <button
                           onMouseDown={(e) => e.stopPropagation()}
                           onClick={(e) => { e.stopPropagation(); onDeletePermanently?.(item.id); }}
@@ -823,6 +811,8 @@ export const ItemRow = ({
                   tierRank={tierRank}
                   isArchive={isArchive}
                   archive={archive}
+                  onRestore={onRestore}
+                  onDeletePermanently={onDeletePermanently}
                 />
               )}
             </div>
@@ -839,7 +829,7 @@ const ItemDropdown = ({
   onDelete, onDuplicate, onOpenSettings, onCast, onRemoveFromCollection, onAddItemToCollection,
   expandedIds, toggleExpanded, canCast, listView, fieldColumns,
   onDragStart, onDragEnd, onDropOnItem, onDropInsideCollection, tierRank,
-  activeFieldIds, activeFields, isArchive, archive
+  activeFieldIds, activeFields, isArchive, archive, onRestore, onDeletePermanently
 }) => {
   const tier = character.qualityTiers.find((t) => t.id === item.tierId);
   const descField = character.infoFields.find((f) => f.name.toLowerCase() === 'description');
