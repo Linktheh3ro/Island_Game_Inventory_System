@@ -40,8 +40,6 @@ export const createCharacter = (name = 'New Character', parentId = null) => {
     parentId,
     categories: cats.map(c => ({ ...c, side: 'mundane', isCurrency: false })).concat([
       { id: uid(), name: 'Gold Sovereign', side: 'mundane', isCurrency: true, currencyValue: 0, currencyMax: 9999 },
-      { id: uid(), name: 'Sorcery',  side: 'magic', isCurrency: false },
-      { id: uid(), name: 'Wizardry', side: 'magic', isCurrency: false },
       { id: uid(), name: 'MPE', side: 'magic', isCurrency: true, currencyValue: 0, currencyMax: 100 },
     ]),
     qualityTiers: defaultTiers(),

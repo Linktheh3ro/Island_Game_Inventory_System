@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { ArrowLeft, Plus, Search, Settings, ArrowDownAZ, ArrowUpAZ, ArrowDown01, ArrowUp01, ImagePlus, X, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Archive } from 'lucide-react';
 import { createItem, uid, itemCanExpand } from '@/lib/defaults';
 import { matches } from '@/lib/fuzzy';
@@ -965,18 +965,45 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     return character.infoFields.filter((f) => usedIds.has(f.id) && f.visible !== false).slice(0, 6);
   }, [character.infoFields, character.items, activeTab, state.activeInventoryId, side]);
 
+  const copyItem = useCallback((item, cut = false) => {
+    if (!item) return;
+    const payload = { item, sourceCharacterId: character.id };
+    setItemClipboard(payload);
+    try { navigator.clipboard?.writeText(`TTI_ITEM:${JSON.stringify(payload)}`); } catch {}
+    if (cut) {
+      updateCharacter({ ...character, items: character.items.filter((it) => it.id !== item.id) });
+      setSelectedIds(new Set());
+      setExpandedIds(new Set());
+      toast.message(`Cut "${item.name}"`);
+    } else {
+      toast.message(`Copied "${item.name}"`);
+    }
+  }, [character, updateCharacter, setSelectedIds, setExpandedIds]);
+
+  const pasteItem = useCallback(async () => {
+    let payload = itemClipboard;
+    try {
+      const text = await navigator.clipboard?.readText?.();
+      if (text?.startsWith('TTI_ITEM:')) {
+        payload = JSON.parse(text.slice('TTI_ITEM:'.length)) || payload;
+      }
+    } catch {}
+    const source = payload?.item;
+    if (!source) return toast.error('Copy an item first');
+    const categoryId = activeTab !== ALL ? activeTab : sideCategories[0]?.id;
+    if (!categoryId) return toast.error('Create a non-currency category first');
+    const pasted = { ...source, id: uid(), name: source.name, side, categoryId, inventoryId: state.activeInventoryId, createdAt: Date.now() };
+    updateCharacter({ ...character, items: [pasted, ...character.items] });
+    setSelectedIds(new Set([pasted.id]));
+    setLastClickedId(pasted.id);
+    toast.success(`Pasted "${pasted.name}"`);
+  }, [itemClipboard, activeTab, sideCategories, state.activeInventoryId, character, updateCharacter, setSelectedIds, setLastClickedId, side]);
+
   useEffect(() => {
     const isEditable = (el) => {
       if (!el) return false;
       const tag = el.tagName;
       return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
-    };
-    const readItemPayload = (text) => {
-      if (!text?.startsWith('TTI_ITEM:')) return null;
-      try { return JSON.parse(text.slice('TTI_ITEM:'.length)); } catch { return null; }
-    };
-    const writeClipboardText = (payload) => {
-      try { navigator.clipboard?.writeText(`TTI_ITEM:${JSON.stringify(payload)}`); } catch {}
     };
     const handler = async (e) => {
       if (!(e.ctrlKey || e.metaKey) || isEditable(document.activeElement)) return;
@@ -988,38 +1015,17 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
         const firstSelectedId = selectedIds.size > 0 ? [...selectedIds][0] : null;
         const item = visibleItems.find((it) => it.id === firstSelectedId) || visibleItems[0];
         if (!item) return toast.error('Select an item first');
-        const payload = { item, sourceCharacterId: character.id };
-        setItemClipboard(payload);
-        writeClipboardText(payload);
-        if (key === 'x') {
-          updateCharacter({ ...character, items: character.items.filter((it) => it.id !== item.id) });
-          setSelectedIds(new Set());
-          setExpandedIds(new Set());
-          toast.message(`Cut "${item.name}"`);
-        } else {
-          toast.message(`Copied "${item.name}"`);
-        }
+        copyItem(item, key === 'x');
         return;
       }
 
-      let payload = itemClipboard;
-      try {
-        const text = await navigator.clipboard?.readText?.();
-        payload = readItemPayload(text) || payload;
-      } catch {}
-      const source = payload?.item;
-      if (!source) return toast.error('Copy an item first');
-      const categoryId = activeTab !== ALL ? activeTab : sideCategories[0]?.id;
-      if (!categoryId) return toast.error('Create a non-currency category first');
-      const pasted = { ...source, id: uid(), name: source.name, side, categoryId, inventoryId: state.activeInventoryId, createdAt: Date.now() };
-      updateCharacter({ ...character, items: [pasted, ...character.items] });
-      setSelectedIds(new Set([pasted.id]));
-      setLastClickedId(pasted.id);
-      toast.success(`Pasted "${pasted.name}"`);
+      if (key === 'v') {
+        pasteItem();
+      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [activeTab, character, itemClipboard, selectedIds, side, sideCategories, updateCharacter, visibleItems, state.activeInventoryId]);
+  }, [selectedIds, visibleItems, copyItem, pasteItem]);
 
   return (
     <div className="fade-in flex flex-col h-full overflow-hidden" data-testid="inventory-view">
@@ -1561,6 +1567,9 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       isArchive={activeTab === '__archive__'}
                       archive={state.archive}
                       onDeletePermanently={handlePermanentDelete}
+                      onCopy={copyItem}
+                      onPaste={pasteItem}
+                      hasClipboard={!!itemClipboard}
                     />
                   );
                 })

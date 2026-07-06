@@ -253,7 +253,7 @@ export const ItemRow = ({
   onDragStart, onDragEnd, onDropOnItem, onDropInsideCollection, onRemoveFromCollection,
   draggable, showCategoryLabel, listView, fieldColumns, castInfo, onCast, onSelect, onAddItemToCollection,
   expandedIds, toggleExpanded, canCast, isLast, selected, selectedIds, onItemClick,
-  isArchive, onRestore, onDeletePermanently, archive
+  isArchive, onRestore, onDeletePermanently, archive, onCopy, onPaste, hasClipboard
 }) => {
   const tier = character.qualityTiers.find((t) => t.id === item.tierId);
   const category = character.categories.find((c) => c.id === item.categoryId);
@@ -588,7 +588,16 @@ export const ItemRow = ({
             </div>
           </div>
         </ContextMenuTrigger>
-        <ItemContextMenuContent item={item} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} onOpenSettings={() => onOpenSettings(item)} onRemoveFromCollection={onRemoveFromCollection} />
+        <ItemContextMenuContent
+          item={item}
+          onDuplicate={() => onDuplicate(item)}
+          onDelete={() => onDelete(item)}
+          onOpenSettings={() => onOpenSettings(item)}
+          onRemoveFromCollection={onRemoveFromCollection}
+          onCopy={() => onCopy?.(item)}
+          onPaste={onPaste}
+          hasClipboard={hasClipboard}
+        />
       </ContextMenu>
     );
   }
@@ -820,7 +829,16 @@ export const ItemRow = ({
           </div>
         </div>
       </ContextMenuTrigger>
-      <ItemContextMenuContent item={item} onDuplicate={() => onDuplicate(item)} onDelete={() => onDelete(item)} onOpenSettings={() => onOpenSettings(item)} onRemoveFromCollection={onRemoveFromCollection} />
+      <ItemContextMenuContent
+        item={item}
+        onDuplicate={() => onDuplicate(item)}
+        onDelete={() => onDelete(item)}
+        onOpenSettings={() => onOpenSettings(item)}
+        onRemoveFromCollection={onRemoveFromCollection}
+        onCopy={() => onCopy?.(item)}
+        onPaste={onPaste}
+        hasClipboard={hasClipboard}
+      />
     </ContextMenu>
   );
 };
@@ -1014,7 +1032,7 @@ const ItemDropdown = ({
   );
 };
 
-const ItemContextMenuContent = ({ item, onDuplicate, onDelete, onOpenSettings, onRemoveFromCollection }) => (
+const ItemContextMenuContent = ({ item, onDuplicate, onDelete, onOpenSettings, onRemoveFromCollection, onCopy, onPaste, hasClipboard }) => (
   <ContextMenuContent className="bg-[#050507] silver-border" data-testid="item-context-menu">
     {item.containerId && (
       <>
@@ -1027,6 +1045,13 @@ const ItemContextMenuContent = ({ item, onDuplicate, onDelete, onOpenSettings, o
     <ContextMenuItem onClick={onDuplicate} className="font-meta text-xs tracking-[0.15em] text-[#C8CCD2] hover:!bg-[#16161a]" data-testid="ctx-duplicate">
       Duplicate
     </ContextMenuItem>
+    <ContextMenuItem onClick={onCopy} className="font-meta text-xs tracking-[0.15em] text-[#C8CCD2] hover:!bg-[#16161a]" data-testid="ctx-copy">
+      Copy
+    </ContextMenuItem>
+    <ContextMenuItem onClick={onPaste} disabled={!hasClipboard} className="font-meta text-xs tracking-[0.15em] text-[#C8CCD2] hover:!bg-[#16161a] disabled:opacity-30" data-testid="ctx-paste">
+      Paste
+    </ContextMenuItem>
+    <ContextMenuSeparator className="bg-[#1f1f23]" />
     <ContextMenuItem onClick={onOpenSettings} className="font-meta text-xs tracking-[0.15em] text-[#C8CCD2] hover:!bg-[#16161a]" data-testid="ctx-edit">
       Edit settings…
     </ContextMenuItem>
