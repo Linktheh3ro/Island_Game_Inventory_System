@@ -58,7 +58,14 @@ export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpda
   });
 
   const addFieldToItem = (fieldId) => apply({ ...draft, activeFieldIds: [...activeIds, fieldId] });
-  const removeFieldFromItem = (fieldId) => apply({ ...draft, activeFieldIds: activeIds.filter((id) => id !== fieldId) });
+  const removeFieldFromItem = (fieldId) => {
+    const { [fieldId]: _, ...rest } = draft.fields || {};
+    apply({
+      ...draft,
+      activeFieldIds: activeIds.filter((id) => id !== fieldId),
+      fields: rest
+    });
+  };
 
   const createGlobalField = () => {
     const name = newFieldName.trim();

@@ -24,6 +24,8 @@ const SORTS = [
   { id: 'name-desc',    label: 'Z → A',   icon: ArrowUpAZ },
   { id: 'stack-desc',   label: 'STACK ▼', icon: ArrowDown01 },
   { id: 'stack-asc',    label: 'STACK ▲', icon: ArrowUp01 },
+  { id: 'quality-desc', label: 'QUALITY ▼', icon: ArrowDown01 },
+  { id: 'quality-asc',  label: 'QUALITY ▲', icon: ArrowUp01 },
 ];
 
 export const InventoryView = ({ character, state, setState, onBack }) => {
@@ -60,6 +62,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   // Category delete confirmation dialog states
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [expandedMpeCurrencyId, setExpandedMpeCurrencyId] = useState(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
   const tabsRef = useRef(null);
@@ -279,6 +282,13 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     });
   };
 
+  const updateCurrencyMpeConfig = (catId, patch) => {
+    updateCharacter({
+      ...character,
+      categories: character.categories.map((c) => c.id === catId ? { ...c, ...patch } : c),
+    });
+  };
+
   const addCategoryTab = () => {
     setCategoryDialogMode('create');
     setCategoryDialogId(null);
@@ -468,7 +478,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character.categories.map(c => c.isCurrency && (c.side || 'mundane') === 'magic' ? c.name : '').join('|')]);
 
-  // Effective max per currency = base currencyMax + sum of <Currency> Storage values across items (multiplied by stack size)
+  // Effective max per currency = base currencyMax + item storage bonuses + coin-held MPE from linked mundane currencies
   const effectiveMax = (cur) => {
     const storeField = character.infoFields.find((f) => f.name === `${cur.name} Storage`);
     let bonus = 0;
@@ -479,7 +489,20 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
         bonus += v * qty;
       }
     }
+    // Add MPE passively held by any mundane currencies linked to this reserve
+    const mundaneCurrencies = character.categories.filter(c => (c.side || 'mundane') === 'mundane' && c.isCurrency);
+    for (const mc of mundaneCurrencies) {
+      if (mc.mpeCurrencyId === cur.id && mc.mpeRatio > 0) {
+        bonus += Math.floor((mc.currencyValue ?? 0) / mc.mpeRatio);
+      }
+    }
     return (cur.currencyMax ?? 9999) + bonus;
+  };
+
+  // How much MPE a mundane currency is currently holding passively
+  const coinHeldMpe = (coinCat) => {
+    if (!coinCat.mpeRatio || coinCat.mpeRatio <= 0 || !coinCat.mpeCurrencyId) return 0;
+    return Math.floor((coinCat.currencyValue ?? 0) / coinCat.mpeRatio);
   };
 
   const resetCurrency = (catId) => {
@@ -688,6 +711,18 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
           case 'name-desc':    return b.name.localeCompare(a.name);
           case 'stack-asc':    return (a.stack ?? 1) - (b.stack ?? 1);
           case 'stack-desc':   return (b.stack ?? 1) - (a.stack ?? 1);
+          case 'quality-asc': {
+            const tierA = character.qualityTiers.findIndex(t => t.id === a.tierId);
+            const tierB = character.qualityTiers.findIndex(t => t.id === b.tierId);
+            if (tierA !== tierB) return tierA - tierB;
+            return a.name.localeCompare(b.name);
+          }
+          case 'quality-desc': {
+            const tierA = character.qualityTiers.findIndex(t => t.id === a.tierId);
+            const tierB = character.qualityTiers.findIndex(t => t.id === b.tierId);
+            if (tierA !== tierB) return tierB - tierA;
+            return a.name.localeCompare(b.name);
+          }
           default: return 0;
         }
       });
@@ -950,14 +985,15 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
       e.preventDefault();
 
       if (key === 'c' || key === 'x') {
-        const item = visibleItems.find((it) => it.id === selectedItemId) || visibleItems[0];
+        const firstSelectedId = selectedIds.size > 0 ? [...selectedIds][0] : null;
+        const item = visibleItems.find((it) => it.id === firstSelectedId) || visibleItems[0];
         if (!item) return toast.error('Select an item first');
         const payload = { item, sourceCharacterId: character.id };
         setItemClipboard(payload);
         writeClipboardText(payload);
         if (key === 'x') {
           updateCharacter({ ...character, items: character.items.filter((it) => it.id !== item.id) });
-          setSelectedItemId(null);
+          setSelectedIds(new Set());
           setExpandedIds(new Set());
           toast.message(`Cut "${item.name}"`);
         } else {
@@ -979,7 +1015,6 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
       updateCharacter({ ...character, items: [pasted, ...character.items] });
       setSelectedIds(new Set([pasted.id]));
       setLastClickedId(pasted.id);
-      setExpandedIds(new Set([pasted.id]));
       toast.success(`Pasted "${pasted.name}"`);
     };
     window.addEventListener('keydown', handler);
@@ -1225,6 +1260,39 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       <span className="font-meta text-[10px] text-[#4a4d52] flex-1">/ {effectiveMax(cur).toLocaleString()}</span>
                       <button onClick={() => resetCurrency(cur.id)} className="px-2 py-1 silver-border bg-[#16161a] hover:bg-[#1f1f23] font-meta text-[10px] tracking-[0.15em] text-[#C8CCD2]" data-testid={`currency-reset-${cur.name}`}>RESET</button>
                     </div>
+                    {/* Show coin storage contributions */}
+                    {(() => {
+                      const coinContribs = character.categories.filter(c =>
+                        (c.side || 'mundane') === 'mundane' && c.isCurrency &&
+                        c.mpeCurrencyId === cur.id && c.mpeRatio > 0
+                      );
+                      if (coinContribs.length === 0) return null;
+                      return (
+                        <div className="space-y-0.5">
+                          {coinContribs.map(cc => (
+                            <div key={cc.id} className="font-meta text-[9px] text-[#B8860B] tabular-nums flex items-center gap-1">
+                              <span className="text-[#4a4d52]">+{Math.floor((cc.currencyValue ?? 0) / cc.mpeRatio).toLocaleString()}</span>
+                              <span className="text-[#3a3d42]">stored by {cc.name}</span>
+                            </div>
+                          ))}
+                          {(() => {
+                            const storeField = character.infoFields.find(f => f.name === `${cur.name} Storage`);
+                            let itemBonus = 0;
+                            if (storeField) for (const it of character.items) {
+                              const v = parseFloat(it.fields?.[storeField.id]);
+                              if (Number.isFinite(v)) itemBonus += v * (it.hasStack ? (it.stack ?? 1) : 1);
+                            }
+                            if (itemBonus <= 0) return null;
+                            return (
+                              <div className="font-meta text-[9px] tabular-nums flex items-center gap-1">
+                                <span className="text-[#4a4d52]">+{itemBonus.toLocaleString()}</span>
+                                <span className="text-[#3a3d42]">added by items</span>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      );
+                    })()}
                   </div>
                 ) : (
                   <div
@@ -1232,7 +1300,20 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                     className="silver-border bg-[#08080a] px-2 py-2 space-y-2"
                     data-testid={`currency-${cur.name}`}
                   >
-                    <div className="font-meta text-[10px] tracking-[0.25em] text-[#8A9196]">{cur.name.toUpperCase()}</div>
+                    <div className="flex items-center justify-between">
+                      <div className="font-meta text-[10px] tracking-[0.25em] text-[#8A9196]">{cur.name.toUpperCase()}</div>
+                      <button
+                        onClick={() => setExpandedMpeCurrencyId(expandedMpeCurrencyId === cur.id ? null : cur.id)}
+                        className={`p-0.5 text-[9px] font-meta tracking-[0.1em] transition-colors ${
+                          cur.mpeRatio && cur.mpeCurrencyId
+                            ? 'text-[#B8860B] hover:text-[#d4a017]'
+                            : 'text-[#4a4d52] hover:text-[#8A9196]'
+                        }`}
+                        title="Configure MPE conversion ratio"
+                      >
+                        ⚙ MPE
+                      </button>
+                    </div>
                     <input
                       type="text"
                       value={(cur.currencyValue ?? 0).toLocaleString()}
@@ -1250,6 +1331,49 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                         <button key={d} onClick={() => adjustMundaneCurrency(cur.id, d)} className="flex-1 px-1 py-0.5 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-[9px] text-[#C8CCD2]" data-testid={`currency-${cur.name}-${d}`}>{d}</button>
                       ))}
                     </div>
+                    {/* MPE storage config panel */}
+                    {expandedMpeCurrencyId === cur.id && (() => {
+                      const magicCurrencies = character.categories.filter(c => (c.side || 'mundane') === 'magic' && c.isCurrency);
+                      const ratio = cur.mpeRatio ?? '';
+                      const mpeCatId = cur.mpeCurrencyId ?? '';
+                      const coinsHeld = cur.currencyValue ?? 0;
+                      const mpeStored = ratio > 0 ? Math.floor(coinsHeld / ratio) : 0;
+                      const linkedReserve = magicCurrencies.find(mc => mc.id === mpeCatId);
+                      return (
+                        <div className="border-t border-[#1f1f23] pt-2 space-y-1.5 mt-1">
+                          <div className="font-meta text-[9px] tracking-[0.2em] text-[#B8860B]">MPE STORAGE RATIO</div>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="1"
+                              placeholder="Ratio"
+                              value={ratio}
+                              onChange={e => updateCurrencyMpeConfig(cur.id, { mpeRatio: parseInt(e.target.value) || '' })}
+                              className="w-14 bg-[#050507] silver-border px-1.5 py-0.5 font-meta text-[10px] text-[#C8CCD2] tabular-nums text-center focus:outline-none focus:border-[#6a6c70] no-spin"
+                              title="Coins per 1 MPE stored"
+                            />
+                            <span className="font-meta text-[9px] text-[#4a4d52] shrink-0">coins = 1 MPE</span>
+                          </div>
+                          <select
+                            value={mpeCatId}
+                            onChange={e => updateCurrencyMpeConfig(cur.id, { mpeCurrencyId: e.target.value })}
+                            className="w-full bg-[#050507] silver-border px-1.5 py-0.5 font-meta text-[9px] text-[#C8CCD2] focus:outline-none focus:border-[#6a6c70]"
+                          >
+                            <option value="">— link to reserve —</option>
+                            {magicCurrencies.map(mc => (
+                              <option key={mc.id} value={mc.id}>{mc.name}</option>
+                            ))}
+                          </select>
+                          {ratio > 0 && mpeCatId && (
+                            <div className="font-meta text-[9px] text-[#B8860B] tabular-nums leading-relaxed">
+                              <span className="text-[#4a4d52]">Passively storing</span>{' '}
+                              <span className="text-[#d4a017] font-semibold">{mpeStored.toLocaleString()}</span>{' '}
+                              <span className="text-[#4a4d52]">{linkedReserve ? linkedReserve.name : 'MPE'}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )
               ))}

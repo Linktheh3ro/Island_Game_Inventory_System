@@ -253,6 +253,15 @@ export const SettingsDialog = ({ open, onOpenChange, character, onUpdateCharacte
     qualityTiers: character.qualityTiers.filter(t => t.id !== id),
     items: character.items.map(it => it.tierId === id ? { ...it, tierId: null } : it),
   });
+  const moveTier = (id, dir) => {
+    const arr = [...character.qualityTiers];
+    const idx = arr.findIndex(t => t.id === id);
+    if (idx < 0) return;
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= arr.length) return;
+    [arr[idx], arr[targetIdx]] = [arr[targetIdx], arr[idx]];
+    update({ qualityTiers: arr });
+  };
 
   // Info fields (global per character)
   const addField = () => update({ infoFields: [...character.infoFields, { id: uid(), name: 'New Field', visible: true }] });
@@ -372,9 +381,27 @@ export const SettingsDialog = ({ open, onOpenChange, character, onUpdateCharacte
           </TabsContent>
 
           <TabsContent value="tiers" className="mt-4 space-y-3">
-            {character.qualityTiers.map((t) => (
+            {character.qualityTiers.map((t, idx) => (
               <div key={t.id} className="p-3 bg-[#0d0d0f] silver-border space-y-3" data-testid={`tier-card-${t.name}`}>
                 <div className="flex items-center gap-2">
+                  <div className="flex flex-col">
+                    <button
+                      onClick={() => moveTier(t.id, -1)}
+                      disabled={idx === 0}
+                      className="text-[#6a6c70] hover:text-[#C8CCD2] disabled:opacity-30"
+                      data-testid={`tier-up-${t.name}`}
+                    >
+                      <ChevronUp size={12} />
+                    </button>
+                    <button
+                      onClick={() => moveTier(t.id, 1)}
+                      disabled={idx === character.qualityTiers.length - 1}
+                      className="text-[#6a6c70] hover:text-[#C8CCD2] disabled:opacity-30"
+                      data-testid={`tier-down-${t.name}`}
+                    >
+                      <ChevronDown size={12} />
+                    </button>
+                  </div>
                   <input
                     value={t.name}
                     onChange={(e) => updateTier(t.id, { name: e.target.value })}

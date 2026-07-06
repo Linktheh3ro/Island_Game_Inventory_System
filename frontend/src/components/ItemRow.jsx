@@ -325,7 +325,8 @@ export const ItemRow = ({
 
   const removeFieldFromItem = (fieldId) => {
     const next = activeFieldIds.filter((id) => id !== fieldId);
-    onUpdate({ ...item, activeFieldIds: next });
+    const { [fieldId]: _, ...nextFields } = item.fields || {};
+    onUpdate({ ...item, activeFieldIds: next, fields: nextFields });
   };
 
   const onDragStartLocal = (e) => {
