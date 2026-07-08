@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { ArrowLeft, Plus, Search, Settings, ArrowDownAZ, ArrowUpAZ, ArrowDown01, ArrowUp01, ImagePlus, X, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Archive } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Settings, ArrowDownAZ, ArrowUpAZ, ArrowDown01, ArrowUp01, ImagePlus, X, RotateCcw, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Archive, Calculator } from 'lucide-react';
 import { createItem, uid, itemCanExpand } from '@/lib/defaults';
 import { matches } from '@/lib/fuzzy';
 import { ItemRow } from './ItemRow';
@@ -22,11 +22,30 @@ const SORTS = [
   { id: 'created-asc',  label: 'OLDEST',  icon: ArrowUp01 },
   { id: 'name-asc',     label: 'A → Z',   icon: ArrowDownAZ },
   { id: 'name-desc',    label: 'Z → A',   icon: ArrowUpAZ },
+  { id: 'subtype-asc',  label: 'SUBTYPE A → Z', icon: ArrowDownAZ },
+  { id: 'subtype-desc', label: 'SUBTYPE Z → A', icon: ArrowUpAZ },
   { id: 'stack-desc',   label: 'STACK ▼', icon: ArrowDown01 },
   { id: 'stack-asc',    label: 'STACK ▲', icon: ArrowUp01 },
   { id: 'quality-desc', label: 'QUALITY ▼', icon: ArrowDown01 },
   { id: 'quality-asc',  label: 'QUALITY ▲', icon: ArrowUp01 },
 ];
+
+const WEIGHT_ORDER = {
+  'clothing': 1, 'cl': 1,
+  'very light': 2, 'vl': 2,
+  'light': 3, 'l': 3,
+  'medium light': 4, 'ml': 4,
+  'medium': 5, 'm': 5,
+  'medium heavy': 6, 'mh': 6,
+  'heavy': 7, 'h': 7,
+  'super heavy': 8, 'sh': 8
+};
+
+const getWeightRank = (val) => {
+  if (!val) return 999;
+  const clean = String(val).trim().toLowerCase();
+  return WEIGHT_ORDER[clean] ?? 999;
+};
 
 export const InventoryView = ({ character, state, setState, onBack }) => {
   const [activeTab, setActiveTab] = useState(ALL);
@@ -63,6 +82,10 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState(null);
   const [expandedMpeCurrencyId, setExpandedMpeCurrencyId] = useState(null);
+  const [expandedExchCurrencyId, setExpandedExchCurrencyId] = useState(null);
+  const [displayCurrencyId, setDisplayCurrencyId] = useState(null);
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [calcVal, setCalcVal] = useState('');
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);
   const tabsRef = useRef(null);
@@ -106,6 +129,45 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     window.addEventListener('resize', updateTabScrollArrows);
     return () => window.removeEventListener('resize', updateTabScrollArrows);
   }, []);
+
+  const evaluateExpression = (expr) => {
+    const sanitized = expr.replace(/[^0-9.+\-*/() ]/g, '');
+    if (!sanitized) return '';
+    try {
+      const result = new Function(`return (${sanitized})`)();
+      if (result === undefined || isNaN(result) || !isFinite(result)) {
+        return 'Error';
+      }
+      return Number.isInteger(result) ? result.toString() : parseFloat(result.toFixed(4)).toString();
+    } catch {
+      return 'Error';
+    }
+  };
+
+  useEffect(() => {
+    if (!calcOpen) return;
+    const handleKeyDown = (e) => {
+      const active = document.activeElement;
+      const isOtherInput = active && 
+                           (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') && 
+                           active.id !== 'calculator-input';
+      if (isOtherInput) return;
+
+      if (e.key === 'Escape') {
+        setCalcOpen(false);
+        return;
+      }
+
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const calcInput = document.getElementById('calculator-input');
+      if (calcInput && active !== calcInput) {
+        calcInput.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [calcOpen]);
 
   // Allow scrolling horizontally using vertical mouse scroll wheel over categories tab bar
   useEffect(() => {
@@ -172,12 +234,28 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   }, [activeTab, state.activeInventoryId, state.activeCharacterId]);
 
   const handleColSort = (fieldId) => {
+    const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+    const isValueField = valueField && fieldId === valueField.id;
+
     setColSort((cur) => {
       if (cur.fieldId === fieldId) {
-        if (cur.direction === 'asc') return { fieldId, direction: 'desc' };
-        if (cur.direction === 'desc') return { fieldId: null, direction: null };
+        if (isValueField) {
+          if (cur.direction === 'asc' && cur.mode === 'base') {
+            return { fieldId, direction: 'desc', mode: 'base' };
+          }
+          if (cur.direction === 'desc' && cur.mode === 'base') {
+            return { fieldId, direction: 'asc', mode: 'total' };
+          }
+          if (cur.direction === 'asc' && cur.mode === 'total') {
+            return { fieldId, direction: 'desc', mode: 'total' };
+          }
+          return { fieldId: null, direction: null, mode: null };
+        } else {
+          if (cur.direction === 'asc') return { fieldId, direction: 'desc' };
+          if (cur.direction === 'desc') return { fieldId: null, direction: null };
+        }
       }
-      return { fieldId, direction: 'asc' };
+      return { fieldId, direction: 'asc', mode: isValueField ? 'base' : null };
     });
   };
 
@@ -255,6 +333,27 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
   }, [character.items, state.archive, side, activeTab]);
   const sideCategories = character.categories.filter((c) => (c.side || 'mundane') === side && !c.isCurrency);
   const sideCurrencies = character.categories.filter((c) => (c.side || 'mundane') === side && c.isCurrency);
+
+  const displayCurrencies = useMemo(() => {
+    const goldSovereign = character.categories.find(c => c.name.toLowerCase() === 'gold sovereign' || c.name.toLowerCase() === 'gold sovereign coins');
+    const others = character.categories.filter(c => 
+      (c.side || 'mundane') === 'mundane' && 
+      c.isCurrency && 
+      c.exchangeRate > 0 && 
+      c.id !== goldSovereign?.id
+    );
+    return goldSovereign ? [goldSovereign, ...others] : others;
+  }, [character.categories]);
+
+  const activeDisplayCur = useMemo(() => {
+    return displayCurrencies.find(c => c.id === displayCurrencyId) || displayCurrencies[0];
+  }, [displayCurrencies, displayCurrencyId]);
+
+  useEffect(() => {
+    if (displayCurrencyId && !displayCurrencies.some(c => c.id === displayCurrencyId)) {
+      setDisplayCurrencyId(null);
+    }
+  }, [displayCurrencies, displayCurrencyId]);
 
   const setCurrencyValue = (catId, val) => {
     const cleaned = String(val).replace(/,/g, '');
@@ -363,6 +462,8 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
       items: character.items.map(it => it.id === itemId ? { ...it, containerId: collectionId } : it)
     });
     toast.success("Added to collection");
+    setIsDragging(false);
+    setIsDragOverSection(false);
   };
 
   const removeItemFromCollection = (itemId) => {
@@ -388,7 +489,11 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     setItemDialogOpen(true);
   };
 
-  const openItemSettings = (it) => { setEditingItem(it); setItemDialogOpen(true); };
+  const openItemSettings = (it) => {
+    const latest = (character.items || []).find(x => x.id === it.id) || it;
+    setEditingItem(latest);
+    setItemDialogOpen(true);
+  };
 
   // Archive-specific update: writes edits back to state.archive instead of character.items
   const updateArchiveItem = (next) => {
@@ -398,11 +503,16 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     }));
   };
 
-  const openArchiveItemSettings = (it) => { setEditingItem(it); setItemDialogOpen(true); };
+  const openArchiveItemSettings = (it) => {
+    const latest = (state.archive || []).find(x => x.id === it.id) || it;
+    setEditingItem(latest);
+    setItemDialogOpen(true);
+  };
 
   const isViewingArchive = activeTab === '__archive__';
 
   const onItemDialogSave = (next) => {
+    setEditingItem(next);
     if (isViewingArchive) {
       updateArchiveItem(next);
     } else {
@@ -453,6 +563,8 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     updateCharacter({ ...character, items });
     setSort('manual'); // honor manual order after reorder
     setColSort({ fieldId: null, direction: null });
+    setIsDragging(false);
+    setIsDragOverSection(false);
   };
 
   const toggleTierFilter = (id) => {
@@ -477,6 +589,27 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     if (missing.length) updateCharacter({ ...character, infoFields: [...character.infoFields, ...missing] });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [character.categories.map(c => c.isCurrency && (c.side || 'mundane') === 'magic' ? c.name : '').join('|')]);
+
+  const getNumericValue = (item, valueFieldId) => {
+    if (item.isCollection) {
+      const itemsList = activeTab === '__archive__' ? (state.archive || []) : (character.items || []);
+      const subItems = itemsList.filter(it => it.containerId === item.id);
+      let totalVal = 0;
+      for (const sub of subItems) {
+        const val = getNumericValue(sub, valueFieldId);
+        const qty = sub.hasStack ? (sub.stack ?? 1) : 1;
+        totalVal += val * qty;
+      }
+      return totalVal;
+    }
+    const raw = item.fields?.[valueFieldId];
+    if (raw === undefined || raw === null || raw === '') return 0;
+    const clean = String(raw).replace(/,/g, '');
+    const match = clean.match(/([0-9.]+)/);
+    if (!match) return 0;
+    const num = parseFloat(match[0]);
+    return isNaN(num) ? 0 : num;
+  };
 
   // Effective max per currency = base currencyMax + item storage bonuses + coin-held MPE from linked mundane currencies
   const effectiveMax = (cur) => {
@@ -672,7 +805,23 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
       );
     }
     if (colSort.fieldId && colSort.direction) {
+      const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+      const isValueField = valueField && colSort.fieldId === valueField.id;
+
+      const sortField = character.infoFields.find(f => f.id === colSort.fieldId);
+      const isWeightField = sortField && sortField.name.toLowerCase() === 'weight';
+
       arr.sort((a, b) => {
+        if (isValueField) {
+          const isTotal = colSort.mode === 'total';
+          const factorA = isTotal ? (a.stack ?? 1) : 1;
+          const factorB = isTotal ? (b.stack ?? 1) : 1;
+          const numA = getNumericValue(a, valueField.id) * factorA;
+          const numB = getNumericValue(b, valueField.id) * factorB;
+          if (numA !== numB) return colSort.direction === 'asc' ? numA - numB : numB - numA;
+          return a.name.localeCompare(b.name);
+        }
+
         let valA, valB;
         if (colSort.fieldId === 'name') {
           valA = a.name || '';
@@ -680,6 +829,15 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
         } else {
           valA = a.fields?.[colSort.fieldId] ?? '';
           valB = b.fields?.[colSort.fieldId] ?? '';
+        }
+
+        if (isWeightField) {
+          const rankA = getWeightRank(valA);
+          const rankB = getWeightRank(valB);
+          if (rankA !== rankB) {
+            return colSort.direction === 'asc' ? rankA - rankB : rankB - rankA;
+          }
+          return a.name.localeCompare(b.name);
         }
 
         const cleanA = String(valA).trim();
@@ -709,6 +867,18 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
           case 'created-desc': return b.createdAt - a.createdAt;
           case 'name-asc':     return a.name.localeCompare(b.name);
           case 'name-desc':    return b.name.localeCompare(a.name);
+          case 'subtype-asc': {
+            const subA = a.subtype || '';
+            const subB = b.subtype || '';
+            if (subA !== subB) return subA.localeCompare(subB);
+            return a.name.localeCompare(b.name);
+          }
+          case 'subtype-desc': {
+            const subA = a.subtype || '';
+            const subB = b.subtype || '';
+            if (subA !== subB) return subB.localeCompare(subA);
+            return a.name.localeCompare(b.name);
+          }
           case 'stack-asc':    return (a.stack ?? 1) - (b.stack ?? 1);
           case 'stack-desc':   return (b.stack ?? 1) - (a.stack ?? 1);
           case 'quality-asc': {
@@ -721,6 +891,38 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
             const tierA = character.qualityTiers.findIndex(t => t.id === a.tierId);
             const tierB = character.qualityTiers.findIndex(t => t.id === b.tierId);
             if (tierA !== tierB) return tierB - tierA;
+            return a.name.localeCompare(b.name);
+          }
+          case 'value-base-asc': {
+            const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+            if (!valueField) return 0;
+            const valA = getNumericValue(a, valueField.id);
+            const valB = getNumericValue(b, valueField.id);
+            if (valA !== valB) return valA - valB;
+            return a.name.localeCompare(b.name);
+          }
+          case 'value-base-desc': {
+            const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+            if (!valueField) return 0;
+            const valA = getNumericValue(a, valueField.id);
+            const valB = getNumericValue(b, valueField.id);
+            if (valA !== valB) return valB - valA;
+            return a.name.localeCompare(b.name);
+          }
+          case 'value-total-asc': {
+            const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+            if (!valueField) return 0;
+            const valA = getNumericValue(a, valueField.id) * (a.stack ?? 1);
+            const valB = getNumericValue(b, valueField.id) * (b.stack ?? 1);
+            if (valA !== valB) return valA - valB;
+            return a.name.localeCompare(b.name);
+          }
+          case 'value-total-desc': {
+            const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+            if (!valueField) return 0;
+            const valA = getNumericValue(a, valueField.id) * (a.stack ?? 1);
+            const valB = getNumericValue(b, valueField.id) * (b.stack ?? 1);
+            if (valA !== valB) return valB - valA;
             return a.name.localeCompare(b.name);
           }
           default: return 0;
@@ -904,7 +1106,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
         const restoredItems = toRestore.map(x => ({
           ...x,
           inventoryId: invId,
-          categoryId: archiveIds.includes(x.id) && resolvedCategoryId ? resolvedCategoryId : x.categoryId,
+          categoryId: resolvedCategoryId || x.categoryId,
           containerId: archiveIds.includes(x.id) ? null : x.containerId,
         }));
 
@@ -930,11 +1132,35 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     // Handle regular (non-archive) items as before
     if (regularIds.length > 0) {
       const idsSet = new Set(regularIds);
+      
+      const getContainedIds = (containerId) => {
+        let res = [];
+        const direct = (character.items || []).filter(it => it.containerId === containerId);
+        for (const item of direct) {
+          res.push(item.id);
+          if (item.isCollection) {
+            res = res.concat(getContainedIds(item.id));
+          }
+        }
+        return res;
+      };
+
+      const allMovedIds = new Set(regularIds);
+      for (const id of regularIds) {
+        const item = (character.items || []).find(it => it.id === id);
+        if (item?.isCollection) {
+          getContainedIds(id).forEach(cid => allMovedIds.add(cid));
+        }
+      }
+
       let extractedCount = 0;
       const nextItems = character.items.map((it) => {
-        if (idsSet.has(it.id)) {
+        if (allMovedIds.has(it.id)) {
           const next = { ...it };
-          if (next.containerId) { next.containerId = null; extractedCount++; }
+          if (idsSet.has(it.id) && next.containerId) { 
+            next.containerId = null; 
+            extractedCount++; 
+          }
           if (categoryId !== ALL) next.categoryId = categoryId;
           return next;
         }
@@ -948,13 +1174,15 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
         if (targetCat) toast.success(`Moved items to "${targetCat.name}"`);
       }
     }
+    setIsDragging(false);
+    setIsDragOverSection(false);
   };
 
   const listView = true;
   // Column headers in per-category view: only fields actually used by at least one visible item in this category
   const fieldColumns = useMemo(() => {
     const itemsInView = activeTab === ALL
-      ? character.items.filter((i) => (i.inventoryId || 'main') === state.activeInventoryId && !i.containerId && (i.side || 'mundane') === side)
+      ? character.items.filter((i) => (i.inventoryId || 'main') === state.activeInventoryId && (i.side || 'mundane') === side)
       : character.items.filter((i) => i.categoryId === activeTab);
     const usedIds = new Set();
     for (const it of itemsInView) {
@@ -1009,11 +1237,18 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
       if (!(e.ctrlKey || e.metaKey) || isEditable(document.activeElement)) return;
       const key = e.key.toLowerCase();
       if (!['c', 'x', 'v'].includes(key)) return;
+
+      // If user has highlighted text on the page, let standard browser copy action run
+      if (key === 'c' && window.getSelection()?.toString()) {
+        return;
+      }
+
       e.preventDefault();
 
       if (key === 'c' || key === 'x') {
-        const firstSelectedId = selectedIds.size > 0 ? [...selectedIds][0] : null;
-        const item = visibleItems.find((it) => it.id === firstSelectedId) || visibleItems[0];
+        const item = visibleItems.find((it) => it.id === lastClickedId) ||
+                     visibleItems.find((it) => selectedIds.has(it.id)) ||
+                     visibleItems[0];
         if (!item) return toast.error('Select an item first');
         copyItem(item, key === 'x');
         return;
@@ -1025,7 +1260,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [selectedIds, visibleItems, copyItem, pasteItem]);
+  }, [selectedIds, visibleItems, copyItem, pasteItem, lastClickedId]);
 
   return (
     <div className="fade-in flex flex-col h-full overflow-hidden" data-testid="inventory-view">
@@ -1120,7 +1355,74 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                 <span className="font-meta text-[9px] tracking-[0.2em] mt-1 text-[#C8CCD2]">ARCHIVE</span>
               </div>
             )}
-            <div className="flex flex-col gap-1.5 shrink-0">
+            <div className="flex flex-col gap-1.5 shrink-0 relative">
+              {/* Small calculator button */}
+              <button 
+                onClick={() => setCalcOpen(!calcOpen)}
+                className="absolute -top-6 right-0 p-1 text-[#4a4d52] hover:text-[#C8CCD2] transition-colors flex items-center justify-center cursor-pointer"
+                title="Open Calculator"
+                data-testid="calculator-toggle-btn"
+              >
+                <Calculator size={14} />
+              </button>
+
+              {/* Calculator Popover */}
+              {calcOpen && (
+                <div 
+                  className="absolute right-0 top-7 z-[100] w-48 silver-border bg-[#0a0a0c] p-2 shadow-2xl flex flex-col gap-2 select-none"
+                  onMouseDown={e => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between border-b border-[#1f1f23] pb-1">
+                    <span className="font-meta text-[8px] tracking-[0.2em] text-[#6a6c70] font-bold">CALCULATOR</span>
+                    <button onClick={() => setCalcOpen(false)} className="text-[#6a6c70] hover:text-[#C8CCD2] cursor-pointer">
+                      <X size={10} />
+                    </button>
+                  </div>
+                  
+                  <input
+                    id="calculator-input"
+                    type="text"
+                    value={calcVal}
+                    onChange={e => setCalcVal(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        setCalcVal(evaluateExpression(calcVal));
+                      }
+                    }}
+                    className="w-full bg-[#050507] silver-border px-1.5 py-1 font-meta text-xs text-[#C8CCD2] text-right focus:outline-none focus:border-[#6a6c70]"
+                    placeholder="0"
+                    autoComplete="off"
+                  />
+                  
+                  <div className="grid grid-cols-4 gap-1">
+                    <button onClick={() => setCalcVal('')} className="p-1 text-[9px] font-bold silver-border bg-[#0d0d0f] hover:bg-[#201012] text-[#c08080] rounded-sm cursor-pointer">C</button>
+                    <button onClick={() => setCalcVal(prev => prev + '(')} className="p-1 text-[9px] font-bold silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#C8CCD2] rounded-sm cursor-pointer">(</button>
+                    <button onClick={() => setCalcVal(prev => prev + ')')} className="p-1 text-[9px] font-bold silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#C8CCD2] rounded-sm cursor-pointer">)</button>
+                    <button onClick={() => setCalcVal(prev => prev + '/')} className="p-1 text-[9px] font-bold silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#B8860B] rounded-sm cursor-pointer">/</button>
+                    
+                    {['7', '8', '9'].map(num => (
+                      <button key={num} onClick={() => setCalcVal(prev => prev + num)} className="p-1 text-[9px] silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#C8CCD2] rounded-sm cursor-pointer">{num}</button>
+                    ))}
+                    <button onClick={() => setCalcVal(prev => prev + '*')} className="p-1 text-[9px] font-bold silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#B8860B] rounded-sm cursor-pointer">*</button>
+                    
+                    {['4', '5', '6'].map(num => (
+                      <button key={num} onClick={() => setCalcVal(prev => prev + num)} className="p-1 text-[9px] silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#C8CCD2] rounded-sm cursor-pointer">{num}</button>
+                    ))}
+                    <button onClick={() => setCalcVal(prev => prev + '-')} className="p-1 text-[9px] font-bold silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#B8860B] rounded-sm cursor-pointer">-</button>
+                    
+                    {['1', '2', '3'].map(num => (
+                      <button key={num} onClick={() => setCalcVal(prev => prev + num)} className="p-1 text-[9px] silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#C8CCD2] rounded-sm cursor-pointer">{num}</button>
+                    ))}
+                    <button onClick={() => setCalcVal(prev => prev + '+')} className="p-1 text-[9px] font-bold silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#B8860B] rounded-sm cursor-pointer">+</button>
+                    
+                    <button onClick={() => setCalcVal(prev => prev + '0')} className="col-span-2 p-1 text-[9px] silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#C8CCD2] rounded-sm cursor-pointer">0</button>
+                    <button onClick={() => setCalcVal(prev => prev + '.')} className="p-1 text-[9px] silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#C8CCD2] rounded-sm cursor-pointer">.</button>
+                    <button onClick={() => setCalcVal(evaluateExpression(calcVal))} className="p-1 text-[9px] font-bold silver-border bg-[#1a150e] border-[#B8860B] hover:bg-[#251e12] text-[#d4a017] rounded-sm cursor-pointer">=</button>
+                  </div>
+                </div>
+              )}
+
               <button onClick={() => setSettingsOpen(true)} className="px-3 py-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-xs tracking-[0.2em] text-[#C8CCD2] flex items-center justify-center gap-2" data-testid="open-settings-btn">
                 <Settings size={14} />
                 SETTINGS
@@ -1308,17 +1610,38 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                   >
                     <div className="flex items-center justify-between">
                       <div className="font-meta text-[10px] tracking-[0.25em] text-[#8A9196]">{cur.name.toUpperCase()}</div>
-                      <button
-                        onClick={() => setExpandedMpeCurrencyId(expandedMpeCurrencyId === cur.id ? null : cur.id)}
-                        className={`p-0.5 text-[9px] font-meta tracking-[0.1em] transition-colors ${
-                          cur.mpeRatio && cur.mpeCurrencyId
-                            ? 'text-[#B8860B] hover:text-[#d4a017]'
-                            : 'text-[#4a4d52] hover:text-[#8A9196]'
-                        }`}
-                        title="Configure MPE conversion ratio"
-                      >
-                        ⚙ MPE
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setExpandedMpeCurrencyId(expandedMpeCurrencyId === cur.id ? null : cur.id);
+                            setExpandedExchCurrencyId(null);
+                          }}
+                          className={`p-0.5 text-[9px] font-meta tracking-[0.1em] transition-colors ${
+                            cur.mpeRatio && cur.mpeCurrencyId
+                              ? 'text-[#B8860B] hover:text-[#d4a017]'
+                              : 'text-[#4a4d52] hover:text-[#8A9196]'
+                          }`}
+                          title="Configure MPE conversion ratio"
+                        >
+                          ⚙ MPE
+                        </button>
+                        {cur.name.toLowerCase() !== 'gold sovereign' && cur.name.toLowerCase() !== 'gold sovereign coins' && (
+                          <button
+                            onClick={() => {
+                              setExpandedExchCurrencyId(expandedExchCurrencyId === cur.id ? null : cur.id);
+                              setExpandedMpeCurrencyId(null);
+                            }}
+                            className={`p-0.5 text-[9px] font-meta tracking-[0.1em] transition-colors ${
+                              cur.exchangeRate
+                                ? 'text-[#B8860B] hover:text-[#d4a017]'
+                                : 'text-[#4a4d52] hover:text-[#8A9196]'
+                            }`}
+                            title="Configure exchange rate"
+                          >
+                            ⇄ Rate
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <input
                       type="text"
@@ -1347,7 +1670,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       const linkedReserve = magicCurrencies.find(mc => mc.id === mpeCatId);
                       return (
                         <div className="border-t border-[#1f1f23] pt-2 space-y-1.5 mt-1">
-                          <div className="font-meta text-[9px] tracking-[0.2em] text-[#B8860B]">MPE STORAGE RATIO</div>
+                          <div className="font-meta text-[8px] tracking-[0.1em] text-[#B8860B] whitespace-nowrap">MPE RATIO</div>
                           <div className="flex items-center gap-1">
                             <input
                               type="number"
@@ -1355,10 +1678,10 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                               placeholder="Ratio"
                               value={ratio}
                               onChange={e => updateCurrencyMpeConfig(cur.id, { mpeRatio: parseInt(e.target.value) || '' })}
-                              className="w-14 bg-[#050507] silver-border px-1.5 py-0.5 font-meta text-[10px] text-[#C8CCD2] tabular-nums text-center focus:outline-none focus:border-[#6a6c70] no-spin"
+                              className="w-12 bg-[#050507] silver-border px-1 py-0.5 font-meta text-[10px] text-[#C8CCD2] tabular-nums text-center focus:outline-none focus:border-[#6a6c70] no-spin"
                               title="Coins per 1 MPE stored"
                             />
-                            <span className="font-meta text-[9px] text-[#4a4d52] shrink-0">coins = 1 MPE</span>
+                            <span className="font-meta text-[8px] text-[#4a4d52] shrink-0">/ MPE</span>
                           </div>
                           <select
                             value={mpeCatId}
@@ -1375,6 +1698,33 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                               <span className="text-[#4a4d52]">Passively storing</span>{' '}
                               <span className="text-[#d4a017] font-semibold">{mpeStored.toLocaleString()}</span>{' '}
                               <span className="text-[#4a4d52]">{linkedReserve ? linkedReserve.name : 'MPE'}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                    {/* Exchange rate config panel */}
+                    {expandedExchCurrencyId === cur.id && (() => {
+                      const exRate = cur.exchangeRate ?? '';
+                      return (
+                        <div className="border-t border-[#1f1f23] pt-2 space-y-1.5 mt-1">
+                          <div className="font-meta text-[8px] tracking-[0.1em] text-[#B8860B]">EXCHANGE RATE</div>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              min="0.001"
+                              step="any"
+                              placeholder="Rate"
+                              value={exRate}
+                              onChange={e => updateCurrencyMpeConfig(cur.id, { exchangeRate: parseFloat(e.target.value) || '' })}
+                              className="w-12 bg-[#050507] silver-border px-1 py-0.5 font-meta text-[10px] text-[#C8CCD2] tabular-nums text-center focus:outline-none focus:border-[#6a6c70] no-spin"
+                              title="Exchange rate: how many Gold Sovereigns equals 1 coin of this type"
+                            />
+                            <span className="font-meta text-[8px] text-[#4a4d52] shrink-0">GS / Coin</span>
+                          </div>
+                          {exRate > 0 && (
+                            <div className="font-meta text-[8px] text-[#B8860B] italic opacity-85 leading-none mt-1">
+                              1 {cur.name} = {exRate} Gold Sovereign
                             </div>
                           )}
                         </div>
@@ -1511,17 +1861,44 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                   <span>NAME</span>
                   {renderSortIcon('name')}
                 </div>
-                {fieldColumns.map((f) => (
-                  <div 
-                    key={f.id} 
-                    onClick={() => handleColSort(f.id)}
-                    className="truncate flex items-center justify-center gap-1 cursor-pointer select-none hover:text-[#C8CCD2] transition-colors group text-center"
-                    data-testid={`header-field-${f.name}`}
-                  >
-                    <span>{f.name.toUpperCase()}</span>
-                    {renderSortIcon(f.id)}
-                  </div>
-                ))}
+                {fieldColumns.map((f) => {
+                  const isValueField = f.name.toLowerCase() === 'value';
+                  const getCurrencyAbbrev = (name) => {
+                    if (name.toLowerCase() === 'gold sovereign') return 'Gol.';
+                    return name.slice(0, 3) + '.';
+                  };
+                  return (
+                    <div 
+                      key={f.id} 
+                      onClick={() => handleColSort(f.id)}
+                      className="truncate flex items-center justify-center gap-1 cursor-pointer select-none hover:text-[#C8CCD2] transition-colors group text-center"
+                      data-testid={`header-field-${f.name}`}
+                    >
+                      <div className="flex items-center justify-center gap-1.5 min-w-0">
+                        <span className="truncate">
+                          {isValueField && colSort.fieldId === f.id
+                            ? `VALUE (${colSort.mode?.toUpperCase()})`
+                            : f.name.toUpperCase()}
+                        </span>
+                        {renderSortIcon(f.id)}
+                        {isValueField && displayCurrencies.length > 1 && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const idx = displayCurrencies.findIndex(c => c.id === activeDisplayCur.id);
+                              const nextIdx = (idx + 1) % displayCurrencies.length;
+                              setDisplayCurrencyId(displayCurrencies[nextIdx].id);
+                            }}
+                            className="px-1 py-0.2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#B8860B] hover:text-[#d4a017] text-[8px] font-bold tracking-wide rounded-sm transition-colors cursor-pointer select-none shrink-0"
+                            title={`Switch display currency (current: ${activeDisplayCur.name})`}
+                          >
+                            {getCurrencyAbbrev(activeDisplayCur.name).toUpperCase()}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
                 <div className="text-right pr-2">·</div>
               </div>
             )}
@@ -1570,6 +1947,9 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
                       onCopy={copyItem}
                       onPaste={pasteItem}
                       hasClipboard={!!itemClipboard}
+                      activeDisplayCur={activeDisplayCur}
+                      sort={sort}
+                      colSort={colSort}
                     />
                   );
                 })
@@ -1581,7 +1961,10 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
 
       <ItemDialog
         open={itemDialogOpen}
-        onOpenChange={setItemDialogOpen}
+        onOpenChange={(open) => {
+          setItemDialogOpen(open);
+          if (!open) setEditingItem(null);
+        }}
         item={editingItem}
         character={character}
         onSave={onItemDialogSave}

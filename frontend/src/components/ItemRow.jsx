@@ -29,34 +29,161 @@ const TIER_BW = { expert: 1.5, master: 2, grandmaster: 2.5 };
 // Corner SVG size (px)
 const TIER_CS = { expert: 5, master: 12, grandmaster: 12 };
 
+const WEIGHT_ORDER = {
+  'clothing': 1, 'cl': 1,
+  'very light': 2, 'vl': 2,
+  'light': 3, 'l': 3,
+  'medium light': 4, 'ml': 4,
+  'medium': 5, 'm': 5,
+  'medium heavy': 6, 'mh': 6,
+  'heavy': 7, 'h': 7,
+  'super heavy': 8, 'sh': 8
+};
+
+const getWeightRank = (val) => {
+  if (!val) return 999;
+  const clean = String(val).trim().toLowerCase();
+  return WEIGHT_ORDER[clean] ?? 999;
+};
+
+const WEIGHT_TRUNCATED = {
+  'clothing': 'CL',
+  'very light': 'VL',
+  'light': 'L',
+  'medium light': 'ML',
+  'medium': 'M',
+  'medium heavy': 'MH',
+  'heavy': 'H',
+  'super heavy': 'SH'
+};
+
+const getTruncatedWeight = (val) => {
+  if (!val) return '';
+  const clean = String(val).trim().toLowerCase();
+  return WEIGHT_TRUNCATED[clean] ?? val;
+};
+
 const percentToHex = (p) => {
   const val = Math.max(0, Math.min(255, Math.round((p / 100) * 255)));
   return val.toString(16).padStart(2, '0').toUpperCase();
 };
 
-const getFormattedFieldValue = (field, item, hasStack, stack) => {
-  const raw = item.fields[field.id];
+const convertAndFormatValue = (raw, activeDisplayCur, hasStack, stack, isFullAmount = false) => {
+  if (raw === undefined || raw === null || raw === '') return '';
+
+  const match = String(raw).match(/^([0-9.]+)(.*)$/);
+  if (!match) return String(raw);
+
+  const num = parseFloat(match[1]);
+  const suffix = match[2];
+  if (isNaN(num)) return String(raw);
+
+  let rate = 1;
+  let abbrev = '';
+  const isDefault = !activeDisplayCur || 
+                    activeDisplayCur.name.toLowerCase() === 'gold sovereign' || 
+                    activeDisplayCur.name.toLowerCase() === 'gold sovereign coins';
+
+  if (!isDefault) {
+    rate = activeDisplayCur.exchangeRate || 1;
+    abbrev = ' ' + (activeDisplayCur.name.slice(0, 3) + '.');
+  }
+
+  const convertNum = (val) => val / rate;
+
+  const truncate = (val) => {
+    if (val >= 1000000) {
+      return (val / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
+    } else if (val >= 1000) {
+      return (val / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    } else {
+      return Number.isInteger(val) ? val.toString() : val.toFixed(2).replace(/\.?0+$/, '');
+    }
+  };
+
+  const getSuffix = () => {
+    return isDefault ? suffix : abbrev;
+  };
+
+  const convertedSuffix = getSuffix();
+
+  if (isFullAmount) {
+    const convertedNum = convertNum(num);
+    
+    if (hasStack && stack > 1) {
+      const total = convertedNum * stack;
+      const formattedTotal = Number.isInteger(total) ? total.toLocaleString() : total.toFixed(2).replace(/\.?0+$/, '');
+      const formattedSingle = Number.isInteger(convertedNum) ? convertedNum.toLocaleString() : convertedNum.toFixed(2).replace(/\.?0+$/, '');
+      return `(${formattedSingle}${convertedSuffix}) ${formattedTotal}${convertedSuffix}`;
+    }
+    
+    const formatted = Number.isInteger(convertedNum) ? convertedNum.toLocaleString() : convertedNum.toFixed(2).replace(/\.?0+$/, '');
+    return `${formatted}${convertedSuffix}`;
+  } else {
+    const convertedNum = convertNum(num);
+
+    if (hasStack && stack > 1) {
+      const total = convertedNum * stack;
+      return `(${truncate(convertedNum)}${convertedSuffix}) ${truncate(total)}${convertedSuffix}`;
+    }
+    return `${truncate(convertedNum)}${convertedSuffix}`;
+  }
+};
+
+const getNumericValue = (item, valueFieldId, characterItems) => {
+  if (item.isCollection) {
+    const subItems = (characterItems || []).filter(it => it.containerId === item.id);
+    let totalVal = 0;
+    for (const sub of subItems) {
+      const val = getNumericValue(sub, valueFieldId, characterItems);
+      const qty = sub.hasStack ? (sub.stack ?? 1) : 1;
+      totalVal += val * qty;
+    }
+    return totalVal;
+  }
+  const raw = item.fields?.[valueFieldId];
+  if (raw === undefined || raw === null || raw === '') return 0;
+  const clean = String(raw).replace(/,/g, '');
+  const match = clean.match(/([0-9.]+)/);
+  if (!match) return 0;
+  const num = parseFloat(match[0]);
+  return isNaN(num) ? 0 : num;
+};
+
+const getCollectionRawValue = (collectionItem, valueFieldId, characterItems) => {
+  const subItems = (characterItems || []).filter(it => it.containerId === collectionItem.id);
+  let suffix = 'gs'; // default fallback
+  let totalVal = 0;
+  for (const sub of subItems) {
+    const raw = sub.fields?.[valueFieldId];
+    if (raw !== undefined && raw !== null && raw !== '') {
+      const match = String(raw).match(/^([0-9.]+)(.*)$/);
+      if (match) {
+        suffix = match[2];
+      }
+    }
+    const val = getNumericValue(sub, valueFieldId, characterItems);
+    const qty = sub.hasStack ? (sub.stack ?? 1) : 1;
+    totalVal += val * qty;
+  }
+  return `${totalVal}${suffix}`;
+};
+
+const getFormattedFieldValue = (field, item, hasStack, stack, activeDisplayCur, characterItems) => {
+  let raw = item.fields?.[field.id];
+  if (field.name.toLowerCase() === 'value' && item.isCollection) {
+    raw = getCollectionRawValue(item, field.id, characterItems);
+  }
   if (raw === undefined || raw === null || raw === '') return null;
 
   const fieldName = field.name.toLowerCase();
 
+  if (fieldName === 'weight') {
+    return getTruncatedWeight(raw);
+  }
+
   if (fieldName === 'value') {
-    // Truncate currency value when not expanded (e.g. 1m, 1k, etc.)
-    const match = String(raw).match(/^([0-9.]+)(.*)$/);
-    if (!match) return String(raw);
-    const num = parseFloat(match[1]);
-    const suffix = match[2];
-    if (isNaN(num)) return String(raw);
-    const finalNum = (hasStack && stack > 1) ? (num * stack) : num;
-    let formatted = '';
-    if (finalNum >= 1000000) {
-      formatted = (finalNum / 1000000).toFixed(1).replace(/\.0$/, '') + 'm';
-    } else if (finalNum >= 1000) {
-      formatted = (finalNum / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-    } else {
-      formatted = finalNum.toString();
-    }
-    return `${formatted}${suffix}`;
+    return convertAndFormatValue(raw, activeDisplayCur, hasStack, stack, false);
   }
 
   const isValueOrStorage = fieldName === 'value' || fieldName.endsWith('storage');
@@ -75,26 +202,12 @@ const getFormattedFieldValue = (field, item, hasStack, stack) => {
   return raw;
 };
 
-const formatFullValueAmount = (field, item, hasStack, stack) => {
-  const raw = item.fields[field.id];
-  if (raw === undefined || raw === null || raw === '') return '';
-
-  const match = String(raw).match(/^([0-9.]+)(.*)$/);
-  if (!match) return String(raw);
-
-  const num = parseFloat(match[1]);
-  const suffix = match[2];
-
-  if (isNaN(num)) return String(raw);
-
-  if (hasStack && stack > 1) {
-    const total = num * stack;
-    const formattedTotal = total.toLocaleString();
-    const formattedSingle = num.toLocaleString();
-    return `${formattedTotal}${suffix} (${formattedSingle}${suffix} each)`;
+const formatFullValueAmount = (field, item, hasStack, stack, activeDisplayCur, characterItems) => {
+  let raw = item.fields?.[field.id];
+  if (field.name.toLowerCase() === 'value' && item.isCollection) {
+    raw = getCollectionRawValue(item, field.id, characterItems);
   }
-
-  return `${num.toLocaleString()}${suffix}`;
+  return convertAndFormatValue(raw, activeDisplayCur, hasStack, stack, true);
 };
 
 /**
@@ -253,7 +366,8 @@ export const ItemRow = ({
   onDragStart, onDragEnd, onDropOnItem, onDropInsideCollection, onRemoveFromCollection,
   draggable, showCategoryLabel, listView, fieldColumns, castInfo, onCast, onSelect, onAddItemToCollection,
   expandedIds, toggleExpanded, canCast, isLast, selected, selectedIds, onItemClick,
-  isArchive, onRestore, onDeletePermanently, archive, onCopy, onPaste, hasClipboard
+  isArchive, onRestore, onDeletePermanently, archive, onCopy, onPaste, hasClipboard,
+  activeDisplayCur = null, sort = 'manual', colSort = { fieldId: null, direction: null }
 }) => {
   const tier = character.qualityTiers.find((t) => t.id === item.tierId);
   const category = character.categories.find((c) => c.id === item.categoryId);
@@ -281,7 +395,7 @@ export const ItemRow = ({
   const qualityActive = (item.activeFieldIds || []).includes('__quality__') || !!item.tierId;
 
   const descField = character.infoFields.find((f) => f.name.toLowerCase() === 'description');
-  const descVal = descField ? (item.fields[descField.id] || '') : '';
+  const descVal = descField ? (item.fields?.[descField.id] || '') : '';
   const canExpand = itemCanExpand(item, character);
 
   const tierStyle = tier
@@ -313,10 +427,20 @@ export const ItemRow = ({
   const showGradient = tier && (gradTop > 0 || gradBottom > 0) && tierRank !== 'grandmaster';
   const showBorderB = !item.containerId || !isLast;
   const isContainedLast = !!(item.containerId && isLast);
-  const showLattice = tierRank === 'grandmaster' && !item.containerId;
+  const parentCollection = item.containerId
+    ? (character.items || []).find((x) => x.id === item.containerId)
+    : null;
+  const parentTier = parentCollection
+    ? (character.qualityTiers || []).find((t) => t.id === parentCollection.tierId)
+    : null;
+  const parentTierRank = parentTier ? getTierRank(parentTier, character.qualityTiers) : null;
+  const parentIsGrandmaster = parentTierRank === 'grandmaster';
+
+  const showLattice = tierRank === 'grandmaster' && !parentIsGrandmaster;
 
   const valueField = character.infoFields.find((f) => f.name.toLowerCase() === 'value');
-  const valueLabel = valueField ? (getFormattedFieldValue(valueField, item, hasStack, stack) || 'indeterminate') : 'indeterminate';
+  const characterItems = isArchive ? (archive || []) : (character.items || []);
+  const valueLabel = valueField ? (getFormattedFieldValue(valueField, item, hasStack, stack, activeDisplayCur, characterItems) || 'indeterminate') : 'indeterminate';
 
   const adjustStack = (delta) => {
     const next = Math.max(1, (item.stack ?? 1) + delta);
@@ -414,7 +538,7 @@ export const ItemRow = ({
               <TierDecorations rank={tierRank} color={tier.color} isCollection={item.isCollection} hideBottomRight={isContainedLast} />
             )}
             {tierRank && (
-              <TierOverlay rank={tierRank} color={tier.color} isCollection={item.isCollection} isNested={!!item.containerId} />
+              <TierOverlay rank={tierRank} color={tier.color} isCollection={item.isCollection} isNested={parentIsGrandmaster} />
             )}
             <div
               draggable={draggable}
@@ -460,7 +584,7 @@ export const ItemRow = ({
 
               {fieldColumns.map((f) => (
                 <div key={f.id} className="font-meta text-xs text-[#B0B5B9] truncate relative z-10 text-center">
-                  {getFormattedFieldValue(f, item, hasStack, stack) || <span className="text-[#4a4d52]">—</span>}
+                  {getFormattedFieldValue(f, item, hasStack, stack, activeDisplayCur, characterItems) || <span className="text-[#4a4d52]">—</span>}
                 </div>
               ))}
 
@@ -582,6 +706,13 @@ export const ItemRow = ({
                     archive={archive}
                     onRestore={onRestore}
                     onDeletePermanently={onDeletePermanently}
+                    onItemClick={onItemClick}
+                    onCopy={onCopy}
+                    onPaste={onPaste}
+                    hasClipboard={hasClipboard}
+                    activeDisplayCur={activeDisplayCur}
+                    sort={sort}
+                    colSort={colSort}
                   />
                 )}
               </div>
@@ -618,7 +749,7 @@ export const ItemRow = ({
             <TierDecorations rank={tierRank} color={tier.color} isCollection={item.isCollection} hideBottomRight={isContainedLast} />
           )}
           {tierRank && (
-            <TierOverlay rank={tierRank} color={tier.color} isCollection={item.isCollection} isNested={!!item.containerId} />
+            <TierOverlay rank={tierRank} color={tier.color} isCollection={item.isCollection} isNested={parentIsGrandmaster} />
           )}
           <TooltipProvider delayDuration={300}>
             <Tooltip>
@@ -823,6 +954,13 @@ export const ItemRow = ({
                   archive={archive}
                   onRestore={onRestore}
                   onDeletePermanently={onDeletePermanently}
+                  onItemClick={onItemClick}
+                  onCopy={onCopy}
+                  onPaste={onPaste}
+                  hasClipboard={hasClipboard}
+                  activeDisplayCur={activeDisplayCur}
+                  sort={sort}
+                  colSort={colSort}
                 />
               )}
             </div>
@@ -848,20 +986,23 @@ const ItemDropdown = ({
   onDelete, onDuplicate, onOpenSettings, onCast, onRemoveFromCollection, onAddItemToCollection,
   expandedIds, toggleExpanded, canCast, listView, fieldColumns,
   onDragStart, onDragEnd, onDropOnItem, onDropInsideCollection, tierRank,
-  activeFieldIds, activeFields, isArchive, archive, onRestore, onDeletePermanently
+  activeFieldIds, activeFields, isArchive, archive, onRestore, onDeletePermanently,
+  onItemClick, onCopy, onPaste, hasClipboard,
+  activeDisplayCur, sort = 'manual', colSort = { fieldId: null, direction: null }
 }) => {
+  const itemsToFilter = isArchive ? (archive || []) : (character.items || []);
   const tier = character.qualityTiers.find((t) => t.id === item.tierId);
   const descField = character.infoFields.find((f) => f.name.toLowerCase() === 'description');
-  const descVal = descField ? (item.fields[descField.id] || '') : '';
+  const descVal = descField ? (item.fields?.[descField.id] || '') : '';
 
   const abilitiesField = character.infoFields.find(f => {
     const lname = f.name.toLowerCase();
     return lname === 'abilities' || lname === 'enchantments' || lname === 'active enchantments / abilities';
   });
-  const abilitiesVal = abilitiesField ? (item.fields[abilitiesField.id] || '') : '';
+  const abilitiesVal = abilitiesField ? (item.fields?.[abilitiesField.id] || '') : '';
 
   const valueField = character.infoFields.find((f) => f.name.toLowerCase() === 'value');
-  const valueVal = valueField ? (item.fields[valueField.id] || '') : '';
+  const valueVal = valueField ? (item.fields?.[valueField.id] || (item.isCollection ? '0gs' : '')) : '';
 
   return (
     <div className="slide-down px-12 py-4 bg-[#08080a] border-b border-[#16161a] relative" data-testid={`item-dropdown-${item.name}`}>
@@ -902,7 +1043,7 @@ const ItemDropdown = ({
             VALUE
           </div>
           <div className="font-item text-sm text-[#C8CCD2]">
-            {formatFullValueAmount(valueField, item, hasStack, stack)}
+            {formatFullValueAmount(valueField, item, hasStack, stack, activeDisplayCur, itemsToFilter)}
           </div>
         </div>
       )}
@@ -927,7 +1068,7 @@ const ItemDropdown = ({
                   {f.name}
                 </span>
                 <span className="font-item text-xs text-[#C8CCD2] mt-1 truncate">
-                  {getFormattedFieldValue(f, item, hasStack, stack) || '—'}
+                  {getFormattedFieldValue(f, item, hasStack, stack, activeDisplayCur, itemsToFilter) || '—'}
                 </span>
               </div>
             ))}
@@ -977,6 +1118,131 @@ const ItemDropdown = ({
           {(() => {
             const itemsToFilter = isArchive ? (archive || []) : (character.items || []);
             const subItems = itemsToFilter.filter(it => it.containerId === item.id);
+            if (colSort && colSort.fieldId && colSort.direction) {
+              const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+              const isValueField = valueField && colSort.fieldId === valueField.id;
+
+              const sortField = character.infoFields.find(f => f.id === colSort.fieldId);
+              const isWeightField = sortField && sortField.name.toLowerCase() === 'weight';
+
+              subItems.sort((a, b) => {
+                if (isValueField) {
+                  const isTotal = colSort.mode === 'total';
+                  const factorA = isTotal ? (a.stack ?? 1) : 1;
+                  const factorB = isTotal ? (b.stack ?? 1) : 1;
+                  const numA = getNumericValue(a, valueField.id, itemsToFilter) * factorA;
+                  const numB = getNumericValue(b, valueField.id, itemsToFilter) * factorB;
+                  if (numA !== numB) return colSort.direction === 'asc' ? numA - numB : numB - numA;
+                  return a.name.localeCompare(b.name);
+                }
+
+                let valA, valB;
+                if (colSort.fieldId === 'name') {
+                  valA = a.name || '';
+                  valB = b.name || '';
+                } else {
+                  valA = a.fields?.[colSort.fieldId] ?? '';
+                  valB = b.fields?.[colSort.fieldId] ?? '';
+                }
+
+                if (isWeightField) {
+                  const rankA = getWeightRank(valA);
+                  const rankB = getWeightRank(valB);
+                  if (rankA !== rankB) {
+                    return colSort.direction === 'asc' ? rankA - rankB : rankB - rankA;
+                  }
+                  return a.name.localeCompare(b.name);
+                }
+
+                const cleanA = String(valA).trim();
+                const cleanB = String(valB).trim();
+
+                if (cleanA === '' && cleanB === '') return 0;
+                if (cleanA === '') return 1;
+                if (cleanB === '') return -1;
+
+                const numA = Number(cleanA);
+                const numB = Number(cleanB);
+                const isNumA = !isNaN(numA);
+                const isNumB = !isNaN(numB);
+
+                let cmp = 0;
+                if (isNumA && isNumB) {
+                  cmp = numA - numB;
+                } else {
+                  cmp = cleanA.localeCompare(cleanB, undefined, { numeric: true, sensitivity: 'base' });
+                }
+                return colSort.direction === 'asc' ? cmp : -cmp;
+              });
+            } else if (sort && sort !== 'manual') {
+              subItems.sort((a, b) => {
+                switch (sort) {
+                  case 'created-asc':  return a.createdAt - b.createdAt;
+                  case 'created-desc': return b.createdAt - a.createdAt;
+                  case 'name-asc':     return a.name.localeCompare(b.name);
+                  case 'name-desc':    return b.name.localeCompare(a.name);
+                  case 'subtype-asc': {
+                    const subA = a.subtype || '';
+                    const subB = b.subtype || '';
+                    if (subA !== subB) return subA.localeCompare(subB);
+                    return a.name.localeCompare(b.name);
+                  }
+                  case 'subtype-desc': {
+                    const subA = a.subtype || '';
+                    const subB = b.subtype || '';
+                    if (subA !== subB) return subB.localeCompare(subA);
+                    return a.name.localeCompare(b.name);
+                  }
+                  case 'stack-asc':    return (a.stack ?? 1) - (b.stack ?? 1);
+                  case 'stack-desc':   return (b.stack ?? 1) - (a.stack ?? 1);
+                  case 'quality-asc': {
+                    const tierA = character.qualityTiers.findIndex(t => t.id === a.tierId);
+                    const tierB = character.qualityTiers.findIndex(t => t.id === b.tierId);
+                    if (tierA !== tierB) return tierA - tierB;
+                    return a.name.localeCompare(b.name);
+                  }
+                  case 'quality-desc': {
+                    const tierA = character.qualityTiers.findIndex(t => t.id === a.tierId);
+                    const tierB = character.qualityTiers.findIndex(t => t.id === b.tierId);
+                    if (tierA !== tierB) return tierB - tierA;
+                    return a.name.localeCompare(b.name);
+                  }
+                  case 'value-base-asc': {
+                    const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+                    if (!valueField) return 0;
+                    const valA = getNumericValue(a, valueField.id, itemsToFilter);
+                    const valB = getNumericValue(b, valueField.id, itemsToFilter);
+                    if (valA !== valB) return valA - valB;
+                    return a.name.localeCompare(b.name);
+                  }
+                  case 'value-base-desc': {
+                    const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+                    if (!valueField) return 0;
+                    const valA = getNumericValue(a, valueField.id, itemsToFilter);
+                    const valB = getNumericValue(b, valueField.id, itemsToFilter);
+                    if (valA !== valB) return valB - valA;
+                    return a.name.localeCompare(b.name);
+                  }
+                  case 'value-total-asc': {
+                    const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+                    if (!valueField) return 0;
+                    const valA = getNumericValue(a, valueField.id, itemsToFilter) * (a.stack ?? 1);
+                    const valB = getNumericValue(b, valueField.id, itemsToFilter) * (b.stack ?? 1);
+                    if (valA !== valB) return valA - valB;
+                    return a.name.localeCompare(b.name);
+                  }
+                  case 'value-total-desc': {
+                    const valueField = character.infoFields.find(f => f.name.toLowerCase() === 'value');
+                    if (!valueField) return 0;
+                    const valA = getNumericValue(a, valueField.id, itemsToFilter) * (a.stack ?? 1);
+                    const valB = getNumericValue(b, valueField.id, itemsToFilter) * (b.stack ?? 1);
+                    if (valA !== valB) return valB - valA;
+                    return a.name.localeCompare(b.name);
+                  }
+                  default: return 0;
+                }
+              });
+            }
             if (subItems.length === 0) {
               return (
                 <div className="font-meta text-[10px] text-[#4a4d52] italic py-1 px-12">
@@ -1020,6 +1286,13 @@ const ItemDropdown = ({
                       archive={archive}
                       onRestore={onRestore}
                       onDeletePermanently={onDeletePermanently}
+                      onItemClick={onItemClick}
+                      onCopy={onCopy}
+                      onPaste={onPaste}
+                      hasClipboard={hasClipboard}
+                      activeDisplayCur={activeDisplayCur}
+                      sort={sort}
+                      colSort={colSort}
                     />
                   );
                 })}

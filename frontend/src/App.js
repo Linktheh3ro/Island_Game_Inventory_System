@@ -89,13 +89,17 @@ function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [state, undo, redo, replaceState, view]);
 
-  // Clean up global dragging class on dragend
+  // Clean up global dragging class on dragend or drop
   useEffect(() => {
     const handleGlobalDragEnd = () => {
       document.body.classList.remove('is-dragging');
     };
     window.addEventListener('dragend', handleGlobalDragEnd);
-    return () => window.removeEventListener('dragend', handleGlobalDragEnd);
+    window.addEventListener('drop', handleGlobalDragEnd);
+    return () => {
+      window.removeEventListener('dragend', handleGlobalDragEnd);
+      window.removeEventListener('drop', handleGlobalDragEnd);
+    };
   }, []);
 
   return (

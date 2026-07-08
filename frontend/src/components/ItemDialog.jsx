@@ -32,9 +32,17 @@ export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpda
   const [draft, setDraft] = useState(item);
   const [newFieldName, setNewFieldName] = useState('');
 
-  useEffect(() => { setDraft(item); setNewFieldName(''); }, [item, open]);
+  const [prevItem, setPrevItem] = useState(item);
+  if (item !== prevItem) {
+    setPrevItem(item);
+    setDraft(item);
+  }
 
-  if (!draft) return null;
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
+    setNewFieldName('');
+  }
 
   // Auto-save wrapper: every mutation propagates to parent immediately
   const apply = (next) => {
@@ -43,23 +51,23 @@ export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpda
   };
 
   const setField = (k, v) => apply({ ...draft, [k]: v });
-  const setInfo = (id, v) => apply({ ...draft, fields: { ...draft.fields, [id]: v } });
+  const setInfo = (id, v) => apply({ ...draft, fields: { ...(draft.fields || {}), [id]: v } });
 
-  const activeIds = getActiveFieldIds(draft, character);
+  const activeIds = getActiveFieldIds(draft || {}, character);
   const activeFields = activeIds.map((id) => character.infoFields.find((f) => f.id === id)).filter(Boolean);
   const availableFields = character.infoFields.filter((f) => !activeIds.includes(f.id));
-  const qualityActive = (draft.activeFieldIds || []).includes('__quality__') || !!draft.tierId;
+  const qualityActive = ((draft || {}).activeFieldIds || []).includes('__quality__') || !!(draft || {}).tierId;
 
-  const addQuality = () => apply({ ...draft, activeFieldIds: [...(draft.activeFieldIds || []), '__quality__'] });
+  const addQuality = () => apply({ ...draft, activeFieldIds: [...((draft || {}).activeFieldIds || []), '__quality__'] });
   const removeQuality = () => apply({
     ...draft,
-    activeFieldIds: (draft.activeFieldIds || []).filter((x) => x !== '__quality__'),
+    activeFieldIds: ((draft || {}).activeFieldIds || []).filter((x) => x !== '__quality__'),
     tierId: null,
   });
 
   const addFieldToItem = (fieldId) => apply({ ...draft, activeFieldIds: [...activeIds, fieldId] });
   const removeFieldFromItem = (fieldId) => {
-    const { [fieldId]: _, ...rest } = draft.fields || {};
+    const { [fieldId]: _, ...rest } = (draft || {}).fields || {};
     apply({
       ...draft,
       activeFieldIds: activeIds.filter((id) => id !== fieldId),
@@ -84,7 +92,8 @@ export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpda
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-[#0a0a0c] silver-border max-w-xl max-h-[88vh] overflow-y-auto" data-testid="item-dialog">
+      {draft && (
+        <DialogContent className="bg-[#0a0a0c] silver-border max-w-xl max-h-[88vh] overflow-y-auto" data-testid="item-dialog">
         <DialogHeader>
           <DialogTitle className="font-display silver-text tracking-[0.18em]">ITEM DETAILS</DialogTitle>
           <DialogDescription className="font-meta text-[9px] tracking-[0.3em] text-[#4a4d52]">CHANGES SAVE AUTOMATICALLY</DialogDescription>
@@ -262,14 +271,31 @@ export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpda
                   <span className="font-meta text-[10px] uppercase tracking-[0.2em] text-[#8A9196] mt-2">{f.name}</span>
                   {isMultiLine ? (
                     <AutoGrowingTextarea
-                      value={draft.fields[f.id] || ''}
+                      value={(draft.fields || {})[f.id] || ''}
                       onChange={(e) => setInfo(f.id, e.target.value)}
                       className="bg-[#0d0d0f] silver-border px-3 py-1.5 font-item text-sm text-[#C8CCD2] focus:outline-none focus:border-[#6a6c70] resize-none overflow-hidden min-h-[38px] custom-scrollbar"
                       data-testid={`item-dialog-field-${f.name}`}
                     />
+                  ) : f.name.toLowerCase() === 'weight' ? (
+                    <select
+                      value={(draft.fields || {})[f.id] || ''}
+                      onChange={(e) => setInfo(f.id, e.target.value)}
+                      className="bg-[#0d0d0f] silver-border px-3 py-1.5 font-item text-sm text-[#C8CCD2] focus:outline-none focus:border-[#6a6c70]"
+                      data-testid={`item-dialog-field-${f.name}`}
+                    >
+                      <option value="">(None)</option>
+                      <option value="Clothing">Clothing</option>
+                      <option value="Very light">Very light</option>
+                      <option value="Light">Light</option>
+                      <option value="Medium light">Medium light</option>
+                      <option value="Medium">Medium</option>
+                      <option value="Medium heavy">Medium heavy</option>
+                      <option value="Heavy">Heavy</option>
+                      <option value="Super heavy">Super heavy</option>
+                    </select>
                   ) : (
                     <input
-                      value={draft.fields[f.id] || ''}
+                      value={(draft.fields || {})[f.id] || ''}
                       onChange={(e) => setInfo(f.id, e.target.value)}
                       className="bg-[#0d0d0f] silver-border px-3 py-1.5 font-item text-sm text-[#C8CCD2] focus:outline-none focus:border-[#6a6c70]"
                       data-testid={`item-dialog-field-${f.name}`}
@@ -341,6 +367,7 @@ export const ItemDialog = ({ open, onOpenChange, item, character, onSave, onUpda
           </button>
         </DialogFooter>
       </DialogContent>
+      )}
     </Dialog>
   );
 };

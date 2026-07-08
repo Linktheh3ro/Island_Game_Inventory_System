@@ -246,6 +246,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
     let updatedItem = { ...item };
     let nextQualityTiers = [...(targetChar.qualityTiers || [])];
     let nextCategories = [...(targetChar.categories || [])];
+    let nextInfoFields = [...(targetChar.infoFields || [])];
 
     // 1. Match Quality Tier by name
     if (item.tierId) {
@@ -273,10 +274,58 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
       }
     }
 
+    // 3. Match Info Fields by name and transfer field values & activeFieldIds
+    if (item.fields) {
+      const nextFields = {};
+      const nextActiveFieldIds = [];
+
+      for (const sourceFieldId of Object.keys(item.fields)) {
+        const sourceField = sourceChar.infoFields?.find(f => f.id === sourceFieldId);
+        if (sourceField) {
+          let targetField = nextInfoFields.find(f => f.name.toLowerCase() === sourceField.name.toLowerCase());
+          if (!targetField) {
+            targetField = { ...sourceField, id: uid() };
+            nextInfoFields.push(targetField);
+          }
+          nextFields[targetField.id] = item.fields[sourceFieldId];
+
+          if (item.activeFieldIds?.includes(sourceFieldId)) {
+            nextActiveFieldIds.push(targetField.id);
+          }
+        } else {
+          nextFields[sourceFieldId] = item.fields[sourceFieldId];
+        }
+      }
+
+      if (item.activeFieldIds) {
+        for (const activeId of item.activeFieldIds) {
+          if (activeId === '__quality__') {
+            nextActiveFieldIds.push('__quality__');
+            continue;
+          }
+          const sourceField = sourceChar.infoFields?.find(f => f.id === activeId);
+          if (sourceField) {
+            let targetField = nextInfoFields.find(f => f.name.toLowerCase() === sourceField.name.toLowerCase());
+            if (!targetField) {
+              targetField = { ...sourceField, id: uid() };
+              nextInfoFields.push(targetField);
+            }
+            if (!nextActiveFieldIds.includes(targetField.id)) {
+              nextActiveFieldIds.push(targetField.id);
+            }
+          }
+        }
+      }
+
+      updatedItem.fields = nextFields;
+      updatedItem.activeFieldIds = nextActiveFieldIds;
+    }
+
     return {
       item: updatedItem,
       qualityTiers: nextQualityTiers,
-      categories: nextCategories
+      categories: nextCategories,
+      infoFields: nextInfoFields
     };
   };
 
@@ -322,6 +371,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
           updatedMovedItems.push(res.item);
           currentTargetChar.qualityTiers = res.qualityTiers;
           currentTargetChar.categories = res.categories;
+          currentTargetChar.infoFields = res.infoFields;
         }
 
         const nextTargetItems = [...(currentTargetChar.items || []), ...updatedMovedItems];
@@ -384,6 +434,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
           let updatedItem = res.item;
           currentTargetChar.qualityTiers = res.qualityTiers;
           currentTargetChar.categories = res.categories;
+          currentTargetChar.infoFields = res.infoFields;
 
           if (draggedItemIds.includes(updatedItem.id)) {
             updatedItem = { ...updatedItem, inventoryId: targetInvId, containerId: null };
@@ -460,6 +511,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
           let updatedItem = res.item;
           currentTargetChar.qualityTiers = res.qualityTiers;
           currentTargetChar.categories = res.categories;
+          currentTargetChar.infoFields = res.infoFields;
 
           if (draggedItemIds.includes(updatedItem.id)) {
             updatedItem = { ...updatedItem, inventoryId: targetInvId, containerId: null };
