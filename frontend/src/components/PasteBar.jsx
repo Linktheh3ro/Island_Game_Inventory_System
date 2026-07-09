@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Copy, Check, Upload, Download, Link, PanelLeftOpen, Save } from 'lucide-react';
-import { encodeShare, encodeShareRemote, decodeShareRemote, manualSaveRemote } from '@/lib/share';
+import { Copy, Check, Upload, Download, PanelLeftOpen } from 'lucide-react';
+import { encodeShare, decodeShare } from '@/lib/share';
 import { toast } from 'sonner';
 
 export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSidebar, replaceState, view, setView }) => {
@@ -8,7 +8,7 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
-    const code = await encodeShareRemote(state);
+    const code = encodeShare(state);
     try {
       await navigator.clipboard.writeText(code);
       setCopied(true);
@@ -20,11 +20,10 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
     }
   };
 
-
-  const handleImport = async () => {
+  const handleImport = () => {
     const trimmed = input.trim();
     if (!trimmed) return toast.error('Paste a share code first');
-    const res = await decodeShareRemote(trimmed);
+    const res = decodeShare(trimmed);
     if (!res.ok) return toast.error(res.error || 'Invalid code');
     replaceState(res.state, view === 'roster');
     setInput('');
@@ -55,21 +54,11 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
     toast.success('Downloaded file to PC');
   };
 
-  const handleSaveToBackend = () => {
-    manualSaveRemote(state).then(ok => {
-      if (ok) {
-        toast.success('Inventory saved to backend "saves" folder');
-      } else {
-        toast.error('Failed to save to backend');
-      }
-    });
-  };
-
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const text = await file.text();
-    const res = await decodeShareRemote(text);
+    const res = decodeShare(text);
     if (!res.ok) return toast.error(res.error || 'Invalid file');
     replaceState(res.state, view === 'roster');
     toast.success('Inventory imported');
@@ -95,7 +84,7 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
         </span>
         <input
           type="text"
-          placeholder="Paste code or link..."
+          placeholder="Paste code..."
           className="flex-1 bg-[#0a0a0c] silver-border px-3 py-2 text-sm font-meta text-[#C8CCD2] placeholder:text-[#4a4d52] focus:outline-none focus:border-[#6a6c70]"
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -108,9 +97,6 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
         <button onClick={handleCopy} className="px-3 py-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-xs tracking-[0.2em] text-[#C8CCD2] flex items-center gap-2" data-testid="paste-bar-copy-btn">
           {copied ? <Check size={14} /> : <Copy size={14} />}
           {copied ? 'COPIED' : 'COPY'}
-        </button>
-        <button onClick={handleSaveToBackend} title="Save to local backend" className="p-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#8A9196]" data-testid="paste-bar-save-btn">
-          <Save size={14} />
         </button>
         <button onClick={handleDownload} title="Download file to PC" className="p-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#8A9196]" data-testid="paste-bar-download-btn">
           <Download size={14} />

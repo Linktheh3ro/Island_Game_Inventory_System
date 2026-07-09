@@ -4,7 +4,6 @@ import { CharacterSelect } from '@/components/CharacterSelect';
 import { InventoryView } from '@/components/InventoryView';
 import { PasteBar } from '@/components/PasteBar';
 import { Toaster } from '@/components/ui/sonner';
-import { encodeShareRemote, decodeShareRemote } from '@/lib/share';
 import { toast } from 'sonner';
 
 import { Sidebar } from '@/components/Sidebar';
@@ -15,27 +14,7 @@ function App() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const activeCharacter = state.characters[state.activeCharacterId];
 
-  // Import from URL fragment on first load: #TTI1:... or #/share/...
-  useEffect(() => {
-    const hash = window.location.hash;
-    if (hash && hash.length > 1) {
-      const raw = decodeURIComponent(hash.slice(1));
-      decodeShareRemote(raw).then((res) => {
-        if (res.ok) {
-          replaceState(res.state, true);
-          toast.success('Inventory imported from link');
-          setView('inventory');
-          // Clean the URL so refresh doesn't re-import
-          history.replaceState(null, '', window.location.pathname + window.location.search);
-        } else {
-          toast.error(res.error || 'Failed to import inventory from link');
-        }
-      });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Global keyboard shortcuts: Ctrl+Z, Ctrl+Shift+Z / Ctrl+Y, Ctrl+C, Ctrl+V
+  // Global keyboard shortcuts: Ctrl+Z, Ctrl+Shift+Z / Ctrl+Y
   useEffect(() => {
     const isEditable = (el) => {
       if (!el) return false;
@@ -60,34 +39,10 @@ function App() {
         if (redo()) toast.message('Redo');
         return;
       }
-      // Copy share code
-      if (key === 'c') {
-        if (view !== 'roster') return;
-        const sel = window.getSelection()?.toString();
-        if (inField || sel) return; // let browser handle
-        e.preventDefault();
-        encodeShareRemote(state).then((code) => {
-          navigator.clipboard.writeText(code).then(() => toast.success('Share code copied'));
-        });
-        return;
-      }
-      // Paste share code
-      if (key === 'v') {
-        if (view !== 'roster') return;
-        if (inField) return;
-        e.preventDefault();
-        navigator.clipboard.readText().then((text) => {
-          if (!text) return;
-          decodeShareRemote(text).then((res) => {
-            if (res.ok) { replaceState(res.state); toast.success('Imported from clipboard'); }
-            else toast.error(res.error || 'Clipboard does not contain a valid share code');
-          });
-        });
-      }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [state, undo, redo, replaceState, view]);
+  }, [undo, redo]);
 
   // Clean up global dragging class on dragend or drop
   useEffect(() => {

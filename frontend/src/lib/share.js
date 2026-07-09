@@ -1,6 +1,5 @@
 import { SCHEMA_VERSION, normalizeState, normalizeCharacter } from './defaults';
 import LZString from 'lz-string';
-import { toast } from 'sonner';
 
 const PREFIX_V2 = 'TTI2:';
 const PREFIX_V1 = 'TTI1:';
@@ -39,7 +38,15 @@ export const encodeShare = (state) => {
 // Returns { ok, state, error }
 export const decodeShare = (raw) => {
   if (!raw) return { ok: false, error: 'Empty input' };
-  const trimmed = raw.replace(/^\ufeff/, '').trim();
+
+  let cleanRaw = raw.replace(/^\ufeff/, '').trim();
+  if ((cleanRaw.startsWith('"') && cleanRaw.endsWith('"')) ||
+      (cleanRaw.startsWith("'") && cleanRaw.endsWith("'")) ||
+      (cleanRaw.startsWith('`') && cleanRaw.endsWith('`'))) {
+    cleanRaw = cleanRaw.slice(1, -1).trim();
+  }
+
+  const trimmed = cleanRaw;
   let body = trimmed;
 
   try {
@@ -101,148 +108,4 @@ const migrate = (s) => {
     return normalizeState({ ...s, schemaVersion: SCHEMA_VERSION });
   }
   return normalizeState(s);
-};
-
-const getApiUrl = () => {
-  if (typeof process !== 'undefined' && process.env) {
-    if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
-    if (process.env.REACT_APP_BACKEND_URL) return `${process.env.REACT_APP_BACKEND_URL}/api`;
-  }
-  return 'http://localhost:8000/api';
-};
-const API_URL = getApiUrl();
-
-const fetchWithTimeout = async (resource, options = {}) => {
-  const { timeout = 1500 } = options;
-  const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
-  try {
-    const response = await fetch(resource, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(id);
-    return response;
-  } catch (error) {
-    clearTimeout(id);
-    throw error;
-  }
-};
-
-export const encodeShareRemote = async (state) => {
-  const activeCharId = state.activeCharacterId;
-  const character = state.characters?.[activeCharId];
-  if (!character) return '';
-
-  const payload = {
-    type: "single-character",
-    schemaVersion: state.schemaVersion ?? SCHEMA_VERSION,
-    exportedAt: Date.now(),
-    character: {
-      name: character.name,
-      avatar: character.avatar,
-      inventories: character.inventories || [],
-      items: character.items || [],
-      categories: character.categories || [],
-      qualityTiers: character.qualityTiers || [],
-      infoFields: character.infoFields || []
-    }
-  };
-
-  try {
-    const res = await fetchWithTimeout(`${API_URL}/shares`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state: payload }),
-      timeout: 1500
-    });
-    if (!res.ok) throw new Error('API error');
-    const data = await res.json();
-    if (data.is_fallback) {
-      toast.warning("Database offline. Generated a long share code for compatibility.");
-      return PREFIX_V2 + LZString.compressToEncodedURIComponent(JSON.stringify(payload));
-    }
-    return data.id; // 6-character short code
-  } catch (err) {
-    console.warn('Fallback to local encoding:', err);
-    toast.warning("Database offline. Generated a long share code for compatibility.");
-    return PREFIX_V2 + LZString.compressToEncodedURIComponent(JSON.stringify(payload));
-  }
-};
-
-export const decodeShareRemote = async (raw) => {
-  if (!raw) return { ok: false, error: 'Empty input' };
-  
-  let cleanRaw = raw.replace(/^\ufeff/, '').trim();
-  if ((cleanRaw.startsWith('"') && cleanRaw.endsWith('"')) ||
-      (cleanRaw.startsWith("'") && cleanRaw.endsWith("'")) ||
-      (cleanRaw.startsWith("`") && cleanRaw.endsWith("`"))) {
-    cleanRaw = cleanRaw.slice(1, -1).trim();
-  }
-
-  let code = cleanRaw;
-  if (cleanRaw.includes('/') || cleanRaw.includes('#')) {
-    const hashIdx = cleanRaw.indexOf('#');
-    const path = hashIdx >= 0 ? cleanRaw.slice(hashIdx + 1) : cleanRaw;
-    const parts = path.split('/');
-    const lastPart = parts[parts.length - 1];
-    code = decodeURIComponent(lastPart).trim();
-  }
-
-  if ((code.startsWith('"') && code.endsWith('"')) ||
-      (code.startsWith("'") && code.endsWith("'")) ||
-      (code.startsWith("`") && code.endsWith("`"))) {
-    code = code.slice(1, -1).trim();
-  }
-
-  // If it's a legacy/local prefix or long raw JSON
-  if (code.startsWith('TTI1:') || code.startsWith('TTI2:') || code.startsWith('{') || code.length > 12) {
-    return decodeShare(code);
-  }
-
-  // Fetch short code from backend
-  try {
-    const res = await fetchWithTimeout(`${API_URL}/shares/${code}`, { timeout: 1500 });
-    if (!res.ok) {
-      if (res.status === 404) return { ok: false, error: 'Share code not found' };
-      throw new Error('Server error');
-    }
-    const data = await res.json();
-    return { ok: true, state: migrate(data.state) };
-  } catch (err) {
-    console.error('Failed to fetch share code:', err);
-    if (cleanRaw.startsWith('TTI1:') || cleanRaw.startsWith('TTI2:')) {
-      return decodeShare(cleanRaw);
-    }
-    return { ok: false, error: 'Could not connect to sharing server or invalid code' };
-  }
-};
-
-export const autosaveRemote = async (state, isClosing = false) => {
-  try {
-    const res = await fetch(`${API_URL}/autosave`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state }),
-      keepalive: isClosing
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn('Autosave to backend failed:', err);
-    return false;
-  }
-};
-
-export const manualSaveRemote = async (state) => {
-  try {
-    const res = await fetch(`${API_URL}/manual_save`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ state })
-    });
-    return res.ok;
-  } catch (err) {
-    console.warn('Manual save copy to backend failed:', err);
-    return false;
-  }
 };

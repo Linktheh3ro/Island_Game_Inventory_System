@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { initialState, normalizeState } from './defaults';
-import { autosaveRemote } from './share';
 
 const KEY = 'tabletop-inventory-v1';
 const HISTORY_LIMIT = 80;
@@ -150,45 +149,5 @@ export const useInventoryStore = () => {
     };
   }, [save]);
 
-  // Periodic autosave to local file system via backend
-  useEffect(() => {
-    let lastAutosavedJson = '';
-
-    const triggerAutosave = (isClosing = false) => {
-      const currentState = stateRef.current;
-      const currentJson = JSON.stringify(currentState);
-
-      // Only save if the state has changed since the last autosave
-      if (currentJson === lastAutosavedJson) {
-        return;
-      }
-
-      autosaveRemote(currentState, isClosing).then(ok => {
-        if (ok) {
-          lastAutosavedJson = currentJson;
-        }
-      });
-    };
-
-    // Save every 15 seconds if changes occurred
-    const id = setInterval(() => triggerAutosave(false), 15 * 1000);
-
-    const handleUnload = () => triggerAutosave(true);
-    const handleVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        triggerAutosave(true);
-      }
-    };
-
-    window.addEventListener('beforeunload', handleUnload);
-    document.addEventListener('visibilitychange', handleVisibility);
-
-    return () => {
-      clearInterval(id);
-      window.removeEventListener('beforeunload', handleUnload);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, []);
-
-  return { state, setState, save, undo, redo, replaceState };
+  return { state, setState, undo, redo, replaceState, save };
 };
