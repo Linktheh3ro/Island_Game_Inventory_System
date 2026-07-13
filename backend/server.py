@@ -1,4 +1,6 @@
 from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -12,6 +14,13 @@ from datetime import datetime, timezone
 
 
 ROOT_DIR = Path(__file__).parent
+
+# Setup persistent data directories depending on frozen state
+import sys
+if getattr(sys, 'frozen', False):
+    USER_DATA_DIR = Path(sys.executable).parent.resolve()
+else:
+    USER_DATA_DIR = ROOT_DIR.parent.resolve()
 
 # Load from project root .env (parent) first, then fallback to backend .env
 root_env = ROOT_DIR.parent / '.env'
@@ -100,7 +109,7 @@ import string
 import json
 import sqlite3
 
-SQLITE_DB_FILE = ROOT_DIR / "shares.db"
+SQLITE_DB_FILE = USER_DATA_DIR / "shares.db"
 
 def init_sqlite_db():
     conn = sqlite3.connect(str(SQLITE_DB_FILE))
@@ -216,7 +225,7 @@ async def get_share(share_id: str):
 
 # Setup saves directory
 import re
-SAVES_DIR = ROOT_DIR.parent / "saves"
+SAVES_DIR = USER_DATA_DIR / "saves"
 SAVES_DIR.mkdir(exist_ok=True)
 
 class AutosaveCreate(BaseModel):
@@ -319,6 +328,21 @@ def manual_save_inventory(input: ManualSaveCreate):
         logger.error(f"Manual save failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@api_router.get("/load_latest")
+def load_latest_save():
+    try:
+        save_files = list(SAVES_DIR.glob("*.tti"))
+        if not save_files:
+            return {"ok": False, "message": "No saves found"}
+        # Find the most recently modified file
+        latest_file = max(save_files, key=lambda x: x.stat().st_mtime)
+        with open(latest_file, "r", encoding="utf-8") as f:
+            state = json.load(f)
+        return {"ok": True, "filename": latest_file.name, "state": state}
+    except Exception as e:
+        logger.error(f"Failed to load latest save: {e}")
+        return {"ok": False, "message": str(e)}
+
 # Include the router in the main app
 app.include_router(api_router)
 
@@ -329,6 +353,25 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve frontend static assets & catch-all index.html for client routing
+if getattr(sys, 'frozen', False):
+    frontend_build_dir = Path(sys._MEIPASS) / "frontend" / "build"
+else:
+    frontend_build_dir = USER_DATA_DIR / "frontend" / "build"
+
+if frontend_build_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(frontend_build_dir / "static")), name="static")
+
+    @app.get("/{rest_of_path:path}")
+    async def serve_frontend(rest_of_path: str):
+        if rest_of_path.startswith("api"):
+            raise HTTPException(status_code=404, detail="Not Found")
+        
+        file_path = frontend_build_dir / rest_of_path
+        if file_path.is_file():
+            return FileResponse(str(file_path))
+        return FileResponse(str(frontend_build_dir / "index.html"))
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
