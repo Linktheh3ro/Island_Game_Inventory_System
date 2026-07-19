@@ -343,6 +343,14 @@ def load_latest_save():
         logger.error(f"Failed to load latest save: {e}")
         return {"ok": False, "message": str(e)}
 
+@api_router.get("/shutdown")
+async def shutdown():
+    import os
+    import signal
+    logger.info("Graceful shutdown requested via HTTP. Triggering SIGINT...")
+    os.kill(os.getpid(), signal.SIGINT)
+    return {"status": "shutdown"}
+
 # Include the router in the main app
 app.include_router(api_router)
 

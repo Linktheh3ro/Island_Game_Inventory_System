@@ -34,24 +34,55 @@ function App() {
       .catch(err => console.warn('Failed to load latest save from backend:', err));
   }, []);
 
-  // Shortcut check
+  // Shortcut check (focus & paint guarded to prevent Edge WebView2 interop deadlocks when opened in background)
   useEffect(() => {
     if (!isNative) return;
     if (localStorage.getItem('hide_shortcut_prompt') === 'true') return;
     
-    const checkTimer = setTimeout(() => {
-      if (window.pywebview?.api?.check_shortcut) {
-        window.pywebview.api.check_shortcut()
-          .then((exists) => {
-            if (!exists) {
-              setShowShortcutPrompt(true);
-            }
-          })
-          .catch((err) => console.warn('Failed to check desktop shortcut:', err));
-      }
-    }, 1500);
+    let hasRun = false;
+    let checkTimer = null;
+    let frameId1 = null;
+    let frameId2 = null;
     
-    return () => clearTimeout(checkTimer);
+    const runCheck = () => {
+      if (hasRun) return;
+      window.removeEventListener('focus', runCheck);
+      
+      // Phase 1: Wait for browser rendering paint cycles to complete
+      frameId1 = requestAnimationFrame(() => {
+        frameId2 = requestAnimationFrame(() => {
+          // Phase 2: Add a 200ms buffer for WinForms thread message pump stabilization
+          checkTimer = setTimeout(() => {
+            if (window.pywebview?.api?.check_shortcut) {
+              hasRun = true;
+              window.pywebview.api.check_shortcut()
+                .then((exists) => {
+                  if (!exists) {
+                    setShowShortcutPrompt(true);
+                  }
+                })
+                .catch((err) => {
+                  console.warn('Failed to check desktop shortcut:', err);
+                  hasRun = false; // allow retry if failed
+                });
+            }
+          }, 200);
+        });
+      });
+    };
+
+    if (document.hasFocus()) {
+      checkTimer = setTimeout(runCheck, 1500);
+    } else {
+      window.addEventListener('focus', runCheck);
+    }
+    
+    return () => {
+      if (checkTimer) clearTimeout(checkTimer);
+      if (frameId1) cancelAnimationFrame(frameId1);
+      if (frameId2) cancelAnimationFrame(frameId2);
+      window.removeEventListener('focus', runCheck);
+    };
   }, [isNative]);
 
   // Global keyboard shortcuts: Ctrl+Z, Ctrl+Shift+Z / Ctrl+Y

@@ -3,13 +3,13 @@ export const SCHEMA_VERSION = 2;
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
 export const defaultTiers = () => ([
-  { id: uid(), name: 'Novice',        color: '#5A5A5C', glow: false, gradOpacityTop: 10, gradOpacityBottom: 6 },
-  { id: uid(), name: 'Intermediate',  color: '#5A6A24', glow: false, gradOpacityTop: 10, gradOpacityBottom: 6 },
-  { id: uid(), name: 'Journeyman',    color: '#1F4E7A', glow: false, gradOpacityTop: 10, gradOpacityBottom: 6 },
-  { id: uid(), name: 'Adept',         color: '#7B1C4D', glow: false, gradOpacityTop: 10, gradOpacityBottom: 6 },
-  { id: uid(), name: 'Expert',        color: '#B8860B', glow: false, gradOpacityTop: 10, gradOpacityBottom: 6 },
-  { id: uid(), name: 'Master',        color: '#7A1320', glow: false, gradOpacityTop: 10, gradOpacityBottom: 6 },
-  { id: uid(), name: 'Grandmaster',   color: '#FFFFFF', glow: true,  gradOpacityTop: 10, gradOpacityBottom: 6 },
+  { id: uid(), name: 'Novice',        color: '#5A5A5C', glow: false, gradOpacityTop: 0,  gradOpacityBottom: 0  },
+  { id: uid(), name: 'Intermediate',  color: '#5A6A24', glow: false, gradOpacityTop: 0,  gradOpacityBottom: 0  },
+  { id: uid(), name: 'Journeyman',    color: '#1F4E7A', glow: false, gradOpacityTop: 0,  gradOpacityBottom: 0  },
+  { id: uid(), name: 'Adept',         color: '#7B1C4D', glow: false, gradOpacityTop: 0,  gradOpacityBottom: 0  },
+  { id: uid(), name: 'Expert',        color: '#B8860B', glow: false, gradOpacityTop: 10, gradOpacityBottom: 6  },
+  { id: uid(), name: 'Master',        color: '#7A1320', glow: false, gradOpacityTop: 10, gradOpacityBottom: 6  },
+  { id: uid(), name: 'Grandmaster',   color: '#FFFFFF', glow: true,  gradOpacityTop: 10, gradOpacityBottom: 6  },
 ]);
 
 export const defaultCategories = () => ([
@@ -102,11 +102,17 @@ export const normalizeCharacter = (character) => {
     : createCharacter(character.name || 'New Character', character.parentId ?? null).categories;
   const infoFields = Array.isArray(character.infoFields) && character.infoFields.length ? character.infoFields : defaultFields();
   const qualityTiers = (Array.isArray(character.qualityTiers) && character.qualityTiers.length ? character.qualityTiers : defaultTiers())
-    .map(t => ({
-      ...t,
-      gradOpacityTop: t.gradOpacityTop ?? 10,
-      gradOpacityBottom: t.gradOpacityBottom ?? 6,
-    }));
+    .map(t => {
+      const name = (t.name || '').toLowerCase();
+      const isGradTier = name === 'expert' || name === 'master' || name === 'grandmaster';
+      const defTop = isGradTier ? 10 : 0;
+      const defBot = isGradTier ? 6 : 0;
+      return {
+        ...t,
+        gradOpacityTop: t.gradOpacityTop ?? defTop,
+        gradOpacityBottom: t.gradOpacityBottom ?? defBot,
+      };
+    });
   const fallbackCategory = categories.find((category) => !category.isCurrency)?.id || categories[0]?.id || null;
 
   const defaultInvId = uid();

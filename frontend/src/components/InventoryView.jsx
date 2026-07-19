@@ -395,11 +395,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     setCategoryDialogOpen(true);
   };
 
-  const handleItemClick = (it, e) => {
-    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('label')) {
-      return;
-    }
-
+  const handleSelection = (it, e) => {
     if (e.shiftKey && lastClickedId) {
       e.preventDefault();
       const fromIdx = visibleItems.findIndex(x => x.id === lastClickedId);
@@ -408,7 +404,6 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
         const start = Math.min(fromIdx, toIdx);
         const end = Math.max(fromIdx, toIdx);
         const rangeIds = visibleItems.slice(start, end + 1).map(x => x.id);
-        
         setSelectedIds(prev => {
           const next = new Set(prev);
           rangeIds.forEach(id => next.add(id));
@@ -427,10 +422,34 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
         return next;
       });
       setLastClickedId(it.id);
-    } else {
-      setLastClickedId(it.id);
-      if (itemCanExpand(it, character)) {
-        toggleExpanded(it.id);
+    }
+  };
+
+  const handleItemClick = (it, e, type = 'click') => {
+    if (e.target.closest('button') || e.target.closest('input') || e.target.closest('select') || e.target.closest('label')) {
+      return;
+    }
+
+    const isModifier = e.shiftKey || e.ctrlKey || e.metaKey;
+
+    if (type === 'mousedown') {
+      if (isModifier) {
+        handleSelection(it, e);
+      } else {
+        if (!selectedIds.has(it.id)) {
+          setSelectedIds(new Set([it.id]));
+          setLastClickedId(it.id);
+        }
+      }
+    } else if (type === 'click') {
+      if (!isModifier) {
+        if (selectedIds.has(it.id)) {
+          setSelectedIds(new Set([it.id]));
+          setLastClickedId(it.id);
+        }
+        if (itemCanExpand(it, character)) {
+          toggleExpanded(it.id);
+        }
       }
     }
   };
@@ -457,11 +476,32 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
 
   const moveItemToCollection = (itemId, collectionId) => {
     if (itemId === collectionId) return;
+    
+    // Support both single itemId string and array of itemIds
+    const inputIds = Array.isArray(itemId) ? itemId : [itemId];
+    
+    // Check if any input item is part of a larger active selection
+    let targetIds = [...inputIds];
+    inputIds.forEach(id => {
+      if (selectedIds.has(id)) {
+        selectedIds.forEach(selId => {
+          if (!targetIds.includes(selId)) targetIds.push(selId);
+        });
+      }
+    });
+
+    const validTargetIds = targetIds.filter(id => id !== collectionId);
+    if (validTargetIds.length === 0) return;
+
     updateCharacter({
       ...character,
-      items: character.items.map(it => it.id === itemId ? { ...it, containerId: collectionId } : it)
+      items: character.items.map(it => 
+        validTargetIds.includes(it.id) ? { ...it, containerId: collectionId } : it
+      )
     });
-    toast.success("Added to collection");
+    
+    toast.success(validTargetIds.length > 1 ? `Added ${validTargetIds.length} items to collection` : "Added to collection");
+    setSelectedIds(new Set());
     setIsDragging(false);
     setIsDragOverSection(false);
   };
@@ -1903,7 +1943,16 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto custom-scrollbar min-h-0" data-testid="item-list-scroll-container">
+            <div
+              className="flex-1 overflow-y-auto custom-scrollbar min-h-0"
+              data-testid="item-list-scroll-container"
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setSelectedIds(new Set());
+                  setLastClickedId(null);
+                }
+              }}
+            >
               {visibleItems.length === 0 ? (
                 <div className="text-center py-16 font-meta text-xs tracking-[0.25em] text-[#4a4d52]">
                   {search || tierFilter.size > 0 ? 'NO MATCHES FOUND' : 'INVENTORY EMPTY — CLICK "NEW ITEM"'}

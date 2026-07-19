@@ -152,11 +152,15 @@ const getNumericValue = (item, valueFieldId, characterItems) => {
 
 const getCollectionRawValue = (collectionItem, valueFieldId, characterItems) => {
   const subItems = (characterItems || []).filter(it => it.containerId === collectionItem.id);
+  if (subItems.length === 0) return '';
+
+  let hasAnyValue = false;
   let suffix = 'gs'; // default fallback
   let totalVal = 0;
   for (const sub of subItems) {
     const raw = sub.fields?.[valueFieldId];
     if (raw !== undefined && raw !== null && raw !== '') {
+      hasAnyValue = true;
       const match = String(raw).match(/^([0-9.]+)(.*)$/);
       if (match) {
         suffix = match[2];
@@ -166,6 +170,8 @@ const getCollectionRawValue = (collectionItem, valueFieldId, characterItems) => 
     const qty = sub.hasStack ? (sub.stack ?? 1) : 1;
     totalVal += val * qty;
   }
+  
+  if (!hasAnyValue && totalVal === 0) return '';
   return `${totalVal}${suffix}`;
 };
 
@@ -510,11 +516,11 @@ export const ItemRow = ({
       draggedIds = [draggedData];
     }
 
-    for (const draggedId of draggedIds) {
-      if (draggedId && draggedId !== item.id) {
-        if (currentDropEdge === 'inside') {
-          onDropInsideCollection?.(draggedId, item.id);
-        } else {
+    if (currentDropEdge === 'inside') {
+      onDropInsideCollection?.(draggedIds, item.id);
+    } else {
+      for (const draggedId of draggedIds) {
+        if (draggedId && draggedId !== item.id) {
           onDropOnItem?.(draggedId, item.id, currentDropEdge || 'bottom');
         }
       }
@@ -543,7 +549,8 @@ export const ItemRow = ({
             <div
               draggable={draggable}
               onDragStart={onDragStartLocal}
-              onMouseDown={(e) => onItemClick?.(item, e)}
+              onMouseDown={(e) => onItemClick?.(item, e, 'mousedown')}
+              onClick={(e) => onItemClick?.(item, e, 'click')}
               onDragEnd={onDragEndLocal}
               onDragOver={onDragOverItem}
               onDragLeave={onDragLeaveItem}
@@ -594,6 +601,7 @@ export const ItemRow = ({
                     <span className="font-meta text-[9px] tracking-[0.1em] text-[#4a4d52] italic select-none hidden sm:inline">drag to category to restore</span>
                     <button
                       onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onDeletePermanently?.(item.id); }}
                       className="p-1 hover:bg-[#2a0d10] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#c08080] h-[22px] w-[22px] flex items-center justify-center shrink-0"
                       title="Permanently Delete"
@@ -606,6 +614,7 @@ export const ItemRow = ({
                     {castInfo && (
                       <button
                         onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); onCast?.(item); }}
                         className={`px-3 py-1 silver-border font-meta text-[10px] tracking-[0.2em] ${castInfo.ok ? 'bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9]' : 'bg-[#2a0d10] text-[#c08080]'}`}
                         title={`Cost ${castInfo.cost} ${castInfo.cur.name}`}
@@ -617,6 +626,7 @@ export const ItemRow = ({
                     {item.isDaily && (
                       <button
                         onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); onUpdate({ ...item, isDailyUsed: !item.isDailyUsed }); }}
                         className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
                         title={item.isDailyUsed ? "Reset daily use" : "Use item / ability for the day"}
@@ -632,6 +642,7 @@ export const ItemRow = ({
                       return (
                         <button
                           onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (isZero) {
@@ -651,6 +662,7 @@ export const ItemRow = ({
                     {item.containerId && (
                       <button
                         onMouseDown={(e) => e.stopPropagation()}
+                        onPointerDown={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); onRemoveFromCollection?.(item.id); }}
                         className="p-1 opacity-40 hover:opacity-100 text-[#8A9196]"
                         title="Extract from collection"
@@ -661,6 +673,7 @@ export const ItemRow = ({
                     )}
                     <button
                       onMouseDown={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); onOpenSettings(item); }}
                       className="p-1 text-[#4a4d52] hover:text-[#C8CCD2]"
                       title="Item settings"
@@ -757,7 +770,8 @@ export const ItemRow = ({
                 <div
                   draggable={draggable}
                   onDragStart={onDragStartLocal}
-                  onMouseDown={(e) => onItemClick?.(item, e)}
+                  onMouseDown={(e) => onItemClick?.(item, e, 'mousedown')}
+                  onClick={(e) => onItemClick?.(item, e, 'click')}
                   onDragEnd={onDragEndLocal}
                   onDragOver={onDragOverItem}
                   onDragLeave={onDragLeaveItem}
@@ -835,6 +849,7 @@ export const ItemRow = ({
                         <span className="font-meta text-[9px] tracking-[0.1em] text-[#4a4d52] italic select-none hidden sm:inline">drag to category to restore</span>
                         <button
                           onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => { e.stopPropagation(); onDeletePermanently?.(item.id); }}
                           className="p-1 hover:bg-[#2a0d10] silver-border bg-[#0d0d0f] text-[#8A9196] hover:text-[#c08080] h-[22px] w-[22px] flex items-center justify-center shrink-0"
                           title="Permanently Delete"
@@ -847,6 +862,7 @@ export const ItemRow = ({
                         {castInfo && (
                           <button
                             onMouseDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); onCast?.(item); }}
                             className={`px-3 py-1 silver-border font-meta text-[10px] tracking-[0.2em] ${castInfo.ok ? 'bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9]' : 'bg-[#2a0d10] text-[#c08080]'}`}
                             title={`Cost ${castInfo.cost} ${castInfo.cur.name}`}
@@ -858,6 +874,7 @@ export const ItemRow = ({
                         {item.isDaily && (
                           <button
                             onMouseDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); onUpdate({ ...item, isDailyUsed: !item.isDailyUsed }); }}
                             className="w-[54px] h-[22px] px-0 py-0 silver-border font-meta text-[10px] tracking-[0.2em] bg-[#16161a] hover:bg-[#1f1f23] text-[#E2E4E9] flex items-center justify-center gap-1"
                             title={item.isDailyUsed ? "Reset daily use" : "Use item / ability for the day"}
@@ -873,6 +890,7 @@ export const ItemRow = ({
                           return (
                             <button
                               onMouseDown={(e) => e.stopPropagation()}
+                              onPointerDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (isZero) {
@@ -892,6 +910,7 @@ export const ItemRow = ({
                         {item.containerId && (
                           <button
                             onMouseDown={(e) => e.stopPropagation()}
+                            onPointerDown={(e) => e.stopPropagation()}
                             onClick={(e) => { e.stopPropagation(); onRemoveFromCollection?.(item.id); }}
                             className="p-1 opacity-40 hover:opacity-100 text-[#8A9196]"
                             title="Extract from collection"
@@ -902,6 +921,7 @@ export const ItemRow = ({
                         )}
                         <button
                           onMouseDown={(e) => e.stopPropagation()}
+                          onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => { e.stopPropagation(); onOpenSettings(item); }}
                           className="p-1 text-[#4a4d52] hover:text-[#C8CCD2]"
                           title="Item settings"
@@ -1002,7 +1022,11 @@ const ItemDropdown = ({
   const abilitiesVal = abilitiesField ? (item.fields?.[abilitiesField.id] || '') : '';
 
   const valueField = character.infoFields.find((f) => f.name.toLowerCase() === 'value');
-  const valueVal = valueField ? (item.fields?.[valueField.id] || (item.isCollection ? '0gs' : '')) : '';
+  const getCollectionCalculatedRaw = () => {
+    if (!valueField) return '';
+    return getCollectionRawValue(item, valueField.id, itemsToFilter);
+  };
+  const valueVal = valueField ? (item.fields?.[valueField.id] || (item.isCollection ? getCollectionCalculatedRaw() : '')) : '';
 
   return (
     <div className="slide-down px-12 py-4 bg-[#08080a] border-b border-[#16161a] relative" data-testid={`item-dropdown-${item.name}`}>

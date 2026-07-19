@@ -1,22 +1,53 @@
 import os
 import sys
+from pathlib import Path
 
-# Disable GPU hardware acceleration for WebView2 to prevent focus/rendering deadlocks on startup
-os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = "--disable-gpu"
+# ============================================================================
+# CHILD PROCESS INTERCEPT: Must be the very first logic check.
+# When this script is re-invoked by subprocess.Popen with "--server <port>",
+# the child must ONLY start the uvicorn server and exit. Without this guard,
+# frozen PyInstaller executables re-execute the entire script including the
+# GUI/subprocess spawn code, causing an infinite fork bomb of new windows.
+# ============================================================================
+if "--server" in sys.argv:
+    _server_idx = sys.argv.index("--server")
+    _server_port = int(sys.argv[_server_idx + 1])
+
+    # Setup paths for frozen environment
+    if getattr(sys, 'frozen', False):
+        _ROOT = Path(sys._MEIPASS).resolve()
+    else:
+        _ROOT = Path(__file__).resolve().parent
+    sys.path.insert(0, str(_ROOT))
+
+    # Redirect stdout/stderr for the child server process
+    _LOCAL_APP_DIR = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))) / "CharacterVault"
+    _LOCAL_APP_DIR.mkdir(parents=True, exist_ok=True)
+    _log_file = open(_LOCAL_APP_DIR / "backend_server.log", "w", encoding="utf-8", buffering=1)
+    sys.stdout = _log_file
+    sys.stderr = _log_file
+
+    import uvicorn
+    from backend.server import app
+    uvicorn.run(app, host="127.0.0.1", port=_server_port, log_level="warning")
+    sys.exit(0)
+
+# ============================================================================
+# MAIN GUI PROCESS: Only reached by the initial user-launched instance.
+# ============================================================================
+
+# Redirect stdout and stderr early to capture all startup exceptions and uvicorn logs
+LOCAL_APP_DIR = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))) / "CharacterVault"
+LOCAL_APP_DIR.mkdir(parents=True, exist_ok=True)
+log_file = open(LOCAL_APP_DIR / "app.log", "w", encoding="utf-8", buffering=1)
+sys.stdout = log_file
+sys.stderr = log_file
 
 import time
 import socket
 import threading
 import uvicorn
-import webview
 from pathlib import Path
-
-# Try to update PyInstaller splash screen text if running inside frozen executable
-try:
-    import pyi_splash
-    pyi_splash.update_text("Initializing extraction...")
-except ImportError:
-    pyi_splash = None
 
 # Get root directory
 if getattr(sys, 'frozen', False):
@@ -32,6 +63,13 @@ sys.path.insert(0, str(ROOT))
 # Now import the backend app
 from backend.server import app
 
+# Main initialization starts below
+
+
+import webview
+
+pyi_splash = None
+
 def get_app_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('127.0.0.1', 0))
@@ -44,7 +82,7 @@ def run_server(port):
 
 class DesktopAPI:
     def __init__(self):
-        self.window = None
+        self._window = None
 
     def get_desktop_path(self):
         """Resolves the user's active desktop directory using the Windows Registry,
@@ -110,96 +148,161 @@ class DesktopAPI:
         return True
 
 if __name__ == "__main__":
-    # Create persistent, un-synced storage directory in LocalAppData to avoid OneDrive locking deadlocks
-    LOCAL_APP_DIR = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))) / "CharacterVault"
-    LOCAL_APP_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        # Create persistent, un-synced storage directory in LocalAppData to avoid OneDrive locking deadlocks
+        LOCAL_APP_DIR = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))) / "CharacterVault"
+        LOCAL_APP_DIR.mkdir(parents=True, exist_ok=True)
+        def kill_previous_instance():
+            try:
+                import os
+                import subprocess
+                pid_file = LOCAL_APP_DIR / "character_vault.pid"
+                current_pid = os.getpid()
+                parent_pid = os.getppid()
+                
+                # Always use current PID. Never use parent_pid as that would target explorer.exe when double-clicked!
+                root_pid = current_pid
+                
+                if pid_file.exists():
+                    try:
+                        old_pid = int(pid_file.read_text(encoding="utf-8").strip())
+                        if old_pid not in (current_pid, parent_pid):
+                            # Verify the process name before killing to prevent killing explorer.exe or recycled system PIDs
+                            check = subprocess.run(
+                                ["tasklist", "/FI", f"PID eq {old_pid}", "/FO", "CSV", "/NH"],
+                                creationflags=0x08000000,
+                                capture_output=True,
+                                text=True
+                            )
+                            if "Character" in check.stdout or "python" in check.stdout or "webview" in check.stdout:
+                                # Forcefully kill the previous process tree
+                                subprocess.run(
+                                    ["taskkill", "/F", "/T", "/PID", str(old_pid)],
+                                    creationflags=0x08000000,
+                                    capture_output=True
+                                )
+                                # Wait for OS to release file handles and directories
+                                time.sleep(0.5)
+                    except Exception as e:
+                        print("Error reading/killing previous PID:", e)
+                
+                pid_file.write_text(str(root_pid), encoding="utf-8")
+            except Exception as e:
+                print("Error in PID lockfile cleanup:", e)
 
-    def kill_previous_instance():
+        kill_previous_instance()
+
+        port = get_app_port()
+        
+        # Start FastAPI server in a separate background child process (prevents Python GIL deadlock unresponsiveness)
+        import subprocess
+        server_cmd = [sys.executable]
+        if not getattr(sys, 'frozen', False):
+            server_cmd = [sys.executable, __file__]
+        server_cmd.extend(["--server", str(port)])
+        
+        # Configure child environment paths (critical for frozen packages imports)
+        env = os.environ.copy()
+        if getattr(sys, 'frozen', False):
+            env["_MEIPASS"] = sys._MEIPASS
+        env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
+
+        # Child process handles its own log redirection internally via the --server intercept
+        server_process = subprocess.Popen(
+            server_cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            env=env,
+            creationflags=0x08000000 # CREATE_NO_WINDOW: hide child cmd terminal window
+        )
+        
+        # Poll uvicorn until it starts accepting socket connections (up to 5.0 seconds)
+        for i in range(100):
+            time.sleep(0.05)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(0.05)
+            try:
+                s.connect(('127.0.0.1', port))
+                s.close()
+                break
+            except:
+                pass
+
+        # Initialize JS API bridge
+        api = DesktopAPI()
+
+        import urllib.parse
+        exe_name = Path(sys.executable).stem if getattr(sys, 'frozen', False) else "Character Locker"
+        # Fallback to a cleaner name if it is just a temp file
+        if exe_name.startswith("_MEI") or len(exe_name) == 0:
+            exe_name = "Character Locker"
+            
+        quoted_title = urllib.parse.quote("Character Vault")
+
+        # Open standalone native window (frameless=False to use native title bar)
+        window = webview.create_window(
+            "Character Vault",
+            f"http://127.0.0.1:{port}?native=true&title={quoted_title}",
+            width=1280,
+            height=800,
+            resizable=True,
+            frameless=False,
+            js_api=api
+        )
+        api._window = window
+
+        # Enable private_mode=False and define storage_path to preserve LocalStorage
+        storage_path = str(LOCAL_APP_DIR / ".webview_storage")
         try:
-            import os
-            import subprocess
-            pid_file = LOCAL_APP_DIR / "character_vault.pid"
-            current_pid = os.getpid()
-            parent_pid = os.getppid()
-            
-            if pid_file.exists():
-                try:
-                    old_pid = int(pid_file.read_text(encoding="utf-8").strip())
-                    if old_pid not in (current_pid, parent_pid):
-                        # Forcefully kill the previous process tree (main + all children)
-                        subprocess.run(
-                            ["taskkill", "/F", "/T", "/PID", str(old_pid)],
-                            creationflags=0x08000000,
-                            capture_output=True
-                        )
-                        # Wait for OS to release file handles
-                        time.sleep(0.5)
-                except Exception as e:
-                    print("Error reading/killing previous PID:", e)
-            
-            pid_file.write_text(str(current_pid), encoding="utf-8")
+            webview.start(
+                private_mode=False,
+                storage_path=storage_path
+            )
+        except Exception as start_err:
+            print("Webview failed to start, likely due to corrupted cache. Attempting recovery deletion...", start_err)
+            try:
+                import shutil
+                shutil.rmtree(storage_path, ignore_errors=True)
+                time.sleep(0.5)
+                # Retry starting webview
+                webview.start(
+                    private_mode=False,
+                    storage_path=storage_path
+                )
+            except Exception as retry_err:
+                print("Recovery failed:", retry_err)
+                raise retry_err
+
+        # Clean up backend server child process gracefully on window exit
+        try:
+            # 1. Attempt a graceful shutdown via HTTP request
+            import urllib.request
+            try:
+                urllib.request.urlopen(f"http://127.0.0.1:{port}/api/shutdown", timeout=2)
+            except Exception as e:
+                print("Graceful shutdown request failed:", e)
+                
+            # 2. Wait up to 3.0s for the child process to exit cleanly and release its temp folder locks
+            try:
+                server_process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                # 3. Fallback to taskkill /F /T if it hangs
+                subprocess.run(
+                    f"taskkill /F /T /PID {server_process.pid}",
+                    shell=True,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                server_process.wait(timeout=1)
         except Exception as e:
-            print("Error in PID lockfile cleanup:", e)
-
-    kill_previous_instance()
-
-    if pyi_splash:
-        pyi_splash.update_text("Selecting application port...")
-        
-    port = get_app_port()
-    
-    if pyi_splash:
-        pyi_splash.update_text("Starting local server...")
-        
-    # Start uvicorn server in a background daemon thread
-    t = threading.Thread(target=run_server, args=(port,), daemon=True)
-    t.start()
-    
-    # Poll uvicorn until it starts accepting socket connections (up to 5.0 seconds)
-    for i in range(100):
-        if pyi_splash:
-            pyi_splash.update_text(f"Waiting for backend readiness ({i}%)...")
-        time.sleep(0.05)
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(0.05)
+            print("Error during server cleanup:", e)
+    except Exception as e:
+        import traceback
+        print("Unhandled app startup crash:", e)
+        traceback.print_exc()
         try:
-            s.connect(('127.0.0.1', port))
-            s.close()
-            break
+            log_file.flush()
+            log_file.close()
         except:
             pass
-
-    if pyi_splash:
-        pyi_splash.update_text("Launching interface...")
-        time.sleep(0.1)
-        pyi_splash.close()
-
-    # Initialize JS API bridge
-    api = DesktopAPI()
-
-    import urllib.parse
-    exe_name = Path(sys.executable).stem if getattr(sys, 'frozen', False) else "Character Locker"
-    # Fallback to a cleaner name if it is just a temp file
-    if exe_name.startswith("_MEI") or len(exe_name) == 0:
-        exe_name = "Character Locker"
-        
-    quoted_title = urllib.parse.quote("Character Vault")
-
-    # Open standalone native window (frameless=False to use native title bar)
-    window = webview.create_window(
-        "Character Vault",
-        f"http://127.0.0.1:{port}?native=true&title={quoted_title}",
-        width=1280,
-        height=800,
-        resizable=True,
-        frameless=False,
-        js_api=api
-    )
-    api.window = window
-
-    # Enable private_mode=False and define storage_path to preserve LocalStorage
-    storage_path = str(LOCAL_APP_DIR / ".webview_storage")
-    webview.start(
-        private_mode=False,
-        storage_path=storage_path
-    )
+        sys.exit(1)

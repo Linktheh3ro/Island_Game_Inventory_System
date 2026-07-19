@@ -434,34 +434,44 @@ export const SettingsDialog = ({ open, onOpenChange, character, onUpdateCharacte
                   </button>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#1f1f23]">
-                  <div className="flex items-center gap-2">
-                    <span className="font-meta text-[9px] tracking-[0.15em] text-[#6a6c70] w-16">GRAD TOP</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={t.gradOpacityTop ?? 10}
-                      onChange={(e) => updateTier(t.id, { gradOpacityTop: parseInt(e.target.value, 10) })}
-                      className="flex-1 accent-[#8A9196] bg-[#050507] h-1 rounded-lg appearance-none cursor-pointer"
-                      data-testid={`tier-grad-top-${t.name}`}
-                    />
-                    <span className="font-meta text-[10px] text-[#8A9196] w-8 text-right">{t.gradOpacityTop ?? 10}%</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-meta text-[9px] tracking-[0.15em] text-[#6a6c70] w-16">GRAD BOT</span>
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={t.gradOpacityBottom ?? 6}
-                      onChange={(e) => updateTier(t.id, { gradOpacityBottom: parseInt(e.target.value, 10) })}
-                      className="flex-1 accent-[#8A9196] bg-[#050507] h-1 rounded-lg appearance-none cursor-pointer"
-                      data-testid={`tier-grad-bottom-${t.name}`}
-                    />
-                    <span className="font-meta text-[10px] text-[#8A9196] w-8 text-right">{t.gradOpacityBottom ?? 6}%</span>
-                  </div>
-                </div>
+                {(() => {
+                  const name = (t.name || '').toLowerCase();
+                  const isGradTier = name === 'expert' || name === 'master' || name === 'grandmaster';
+                  const defTop = isGradTier ? 10 : 0;
+                  const defBot = isGradTier ? 6 : 0;
+                  const valTop = t.gradOpacityTop ?? defTop;
+                  const valBot = t.gradOpacityBottom ?? defBot;
+                  return (
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-[#1f1f23]">
+                      <div className="flex items-center gap-2">
+                        <span className="font-meta text-[9px] tracking-[0.15em] text-[#6a6c70] w-16">GRAD TOP</span>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={valTop}
+                          onChange={(e) => updateTier(t.id, { gradOpacityTop: parseInt(e.target.value, 10) })}
+                          className="flex-1 accent-[#8A9196] bg-[#050507] h-1 rounded-lg appearance-none cursor-pointer"
+                          data-testid={`tier-grad-top-${t.name}`}
+                        />
+                        <span className="font-meta text-[10px] text-[#8A9196] w-8 text-right">{valTop}%</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-meta text-[9px] tracking-[0.15em] text-[#6a6c70] w-16">GRAD BOT</span>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={valBot}
+                          onChange={(e) => updateTier(t.id, { gradOpacityBottom: parseInt(e.target.value, 10) })}
+                          className="flex-1 accent-[#8A9196] bg-[#050507] h-1 rounded-lg appearance-none cursor-pointer"
+                          data-testid={`tier-grad-bottom-${t.name}`}
+                        />
+                        <span className="font-meta text-[10px] text-[#8A9196] w-8 text-right">{valBot}%</span>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ))}
             <button onClick={addTier} className="w-full p-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] font-meta text-xs tracking-[0.2em] text-[#C8CCD2] flex items-center justify-center gap-2" data-testid="add-tier-btn">

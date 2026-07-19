@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Check, Upload, Download, PanelLeftOpen } from 'lucide-react';
+import { Copy, Check, Upload, Download, PanelLeftOpen, Save } from 'lucide-react';
 import { encodeShare, decodeShare } from '@/lib/share';
 import { toast } from 'sonner';
 
@@ -54,6 +54,24 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
     toast.success('Downloaded file to PC');
   };
 
+  const handleSaveToBackend = async () => {
+    try {
+      const res = await fetch('/api/manual_save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ state })
+      });
+      if (res.ok) {
+        toast.success('Inventory saved to backend "saves" folder');
+      } else {
+        toast.error('Failed to save to backend');
+      }
+    } catch (err) {
+      console.warn('Manual save copy to backend failed:', err);
+      toast.error('Failed to save to backend');
+    }
+  };
+
   const handleUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -100,6 +118,9 @@ export const PasteBar = ({ state, setState, save, sidebarCollapsed, onExpandSide
         </button>
         <button onClick={handleDownload} title="Download file to PC" className="p-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#8A9196]" data-testid="paste-bar-download-btn">
           <Download size={14} />
+        </button>
+        <button onClick={handleSaveToBackend} title="Save to local backend" className="p-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#8A9196]" data-testid="paste-bar-save-btn">
+          <Save size={14} />
         </button>
         <label title="Upload from file" className="p-2 silver-border bg-[#0d0d0f] hover:bg-[#16161a] text-[#8A9196] cursor-pointer" data-testid="paste-bar-upload-label">
           <Upload size={14} />
