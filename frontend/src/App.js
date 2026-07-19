@@ -115,16 +115,20 @@ function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [undo, redo]);
 
-  // Clean up global dragging class on dragend or drop
+  // Clean up global dragging class on dragend, drop, mouseup, or pointerup
   useEffect(() => {
     const handleGlobalDragEnd = () => {
       document.body.classList.remove('is-dragging');
     };
-    window.addEventListener('dragend', handleGlobalDragEnd);
-    window.addEventListener('drop', handleGlobalDragEnd);
+    window.addEventListener('dragend', handleGlobalDragEnd, true);
+    window.addEventListener('drop', handleGlobalDragEnd, true);
+    window.addEventListener('mouseup', handleGlobalDragEnd, true);
+    window.addEventListener('pointerup', handleGlobalDragEnd, true);
     return () => {
-      window.removeEventListener('dragend', handleGlobalDragEnd);
-      window.removeEventListener('drop', handleGlobalDragEnd);
+      window.removeEventListener('dragend', handleGlobalDragEnd, true);
+      window.removeEventListener('drop', handleGlobalDragEnd, true);
+      window.removeEventListener('mouseup', handleGlobalDragEnd, true);
+      window.removeEventListener('pointerup', handleGlobalDragEnd, true);
     };
   }, []);
 

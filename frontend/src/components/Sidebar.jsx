@@ -193,6 +193,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
     e.preventDefault();
     e.stopPropagation();
     setDraggedOverId(null);
+    document.body.classList.remove('is-dragging');
 
     const rawData = e.dataTransfer.getData('text/plain');
     if (!rawData) return;
@@ -333,6 +334,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
     e.preventDefault();
     e.stopPropagation();
     setDraggedOverId(null);
+    document.body.classList.remove('is-dragging');
 
     const rawData = e.dataTransfer.getData('text/plain');
     if (!rawData) return;
@@ -368,10 +370,13 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
         const updatedMovedItems = [];
         for (const item of movedItems) {
           const res = matchAndTransferItemMetadata(item, sourceChar, currentTargetChar);
-          updatedMovedItems.push(res.item);
+          let updatedItem = res.item;
           currentTargetChar.qualityTiers = res.qualityTiers;
           currentTargetChar.categories = res.categories;
           currentTargetChar.infoFields = res.infoFields;
+
+          updatedItem = { ...updatedItem, inventoryId: draggedInvId };
+          updatedMovedItems.push(updatedItem);
         }
 
         const nextTargetItems = [...(currentTargetChar.items || []), ...updatedMovedItems];
@@ -462,6 +467,7 @@ export const Sidebar = ({ state, setState, view, setView, collapsed, onToggleCol
     e.preventDefault();
     e.stopPropagation();
     setDraggedOverId(null);
+    document.body.classList.remove('is-dragging');
 
     const rawData = e.dataTransfer.getData('text/plain');
     if (!rawData) return;
