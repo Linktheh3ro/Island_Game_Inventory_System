@@ -504,6 +504,10 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     setSelectedIds(new Set());
     setIsDragging(false);
     setIsDragOverSection(false);
+    // Critical: remove the body-level CSS class that disables pointer-events on all row children.
+    // When a dragged ItemRow is unmounted mid-drag (moved into a collection), its onDragEndLocal
+    // cleanup handler never fires, leaving this class stuck and permanently breaking all buttons.
+    document.body.classList.remove('is-dragging');
   };
 
   const removeItemFromCollection = (itemId) => {
@@ -605,6 +609,7 @@ export const InventoryView = ({ character, state, setState, onBack }) => {
     setColSort({ fieldId: null, direction: null });
     setIsDragging(false);
     setIsDragOverSection(false);
+    document.body.classList.remove('is-dragging');
   };
 
   const toggleTierFilter = (id) => {
