@@ -70,6 +70,115 @@ import webview
 
 pyi_splash = None
 
+# ── WebView2 Runtime Detection & Auto-Install ────────────────────────
+def _check_webview2_installed():
+    """Check if Microsoft Edge WebView2 Runtime is installed via registry."""
+    try:
+        import winreg
+        # Check both per-user and per-machine installation paths
+        reg_paths = [
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BEB-EB81BBE09C0B}"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BEB-EB81BBE09C0B}"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BEB-EB81BBE09C0B}"),
+        ]
+        for hive, key_path in reg_paths:
+            try:
+                with winreg.OpenKey(hive, key_path) as key:
+                    val, _ = winreg.QueryValueEx(key, "pv")
+                    if val and val != "0.0.0.0":
+                        return True
+            except FileNotFoundError:
+                continue
+            except Exception:
+                continue
+        return False
+    except Exception:
+        # If we can't check (e.g., not on Windows), assume it's fine
+        return True
+
+def _show_message_box(title, message, style=0x00000040):
+    """Show a native Windows MessageBox (doesn't require tkinter or webview)."""
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(0, message, title, style)
+    except Exception:
+        print(f"[MessageBox] {title}: {message}")
+
+def _install_webview2():
+    """Download and silently install the WebView2 Evergreen Bootstrapper from Microsoft."""
+    import subprocess
+    import tempfile
+    import urllib.request
+
+    url = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+    bootstrapper_path = Path(tempfile.gettempdir()) / "MicrosoftEdgeWebview2Setup.exe"
+
+    try:
+        _show_message_box(
+            "Character Vault — Installing WebView2",
+            "The Microsoft Edge WebView2 Runtime is required but was not found.\n\n"
+            "It will now be downloaded and installed automatically.\n"
+            "This is a one-time setup and only takes a moment.\n\n"
+            "Click OK to continue.",
+            0x00000040  # MB_ICONINFORMATION
+        )
+
+        # Download the bootstrapper
+        print(f"Downloading WebView2 bootstrapper from {url}...")
+        urllib.request.urlretrieve(url, str(bootstrapper_path))
+        print(f"Downloaded to {bootstrapper_path}")
+
+        # Run the bootstrapper silently
+        print("Running WebView2 installer...")
+        result = subprocess.run(
+            [str(bootstrapper_path), "/silent", "/install"],
+            capture_output=True,
+            timeout=120
+        )
+        print(f"WebView2 installer exited with code: {result.returncode}")
+
+        # Clean up
+        try:
+            bootstrapper_path.unlink()
+        except Exception:
+            pass
+
+        if result.returncode == 0:
+            return True
+        else:
+            print(f"WebView2 installer stderr: {result.stderr}")
+            return False
+    except Exception as e:
+        print(f"WebView2 auto-install failed: {e}")
+        return False
+
+def _ensure_webview2():
+    """Ensure WebView2 is installed, attempting auto-install if missing."""
+    if _check_webview2_installed():
+        return True
+
+    print("WebView2 Runtime not detected. Attempting auto-install...")
+
+    if _install_webview2():
+        # Verify installation succeeded
+        if _check_webview2_installed():
+            print("WebView2 installed successfully.")
+            return True
+
+    # Auto-install failed — show manual instructions
+    _show_message_box(
+        "Character Vault — WebView2 Required",
+        "The Microsoft Edge WebView2 Runtime is required but could not be installed automatically.\n\n"
+        "Please install it manually:\n"
+        "1. Visit: https://developer.microsoft.com/en-us/microsoft-edge/webview2\n"
+        "2. Download the 'Evergreen Bootstrapper'\n"
+        "3. Run the installer\n"
+        "4. Restart Character Vault\n\n"
+        "The application will now exit.",
+        0x00000010  # MB_ICONERROR
+    )
+    return False
+
 def get_app_port():
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.bind(('127.0.0.1', 0))
@@ -238,6 +347,15 @@ if __name__ == "__main__":
             exe_name = "Character Locker"
             
         quoted_title = urllib.parse.quote("Character Vault")
+
+        # Pre-flight: ensure WebView2 Runtime is installed (silent hang prevention)
+        if not _ensure_webview2():
+            print("WebView2 Runtime is not available. Exiting.")
+            try:
+                server_process.terminate()
+            except Exception:
+                pass
+            sys.exit(1)
 
         # Open standalone native window (frameless=False to use native title bar)
         window = webview.create_window(

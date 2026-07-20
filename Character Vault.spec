@@ -2,10 +2,10 @@
 
 
 a = Analysis(
-    ['C:\\Users\\hayde\\OneDrive\\Documents\\IDE_Character_Locker-predev0.0.06\\standalone.py'],
+    ['C:\\Users\\hayde\\OneDrive\\Documents\\Character Valt Root\\standalone.py'],
     pathex=[],
     binaries=[],
-    datas=[('C:\\Users\\hayde\\OneDrive\\Documents\\IDE_Character_Locker-predev0.0.06\\frontend\\build', 'frontend/build'), ('C:\\Users\\hayde\\OneDrive\\Documents\\IDE_Character_Locker-predev0.0.06\\backend', 'backend')],
+    datas=[('C:\\Users\\hayde\\OneDrive\\Documents\\Character Valt Root\\frontend\\build', 'frontend/build'), ('C:\\Users\\hayde\\OneDrive\\Documents\\Character Valt Root\\backend', 'backend')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -32,7 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['C:\\Users\\hayde\\OneDrive\\Documents\\IDE_Character_Locker-predev0.0.06\\icon.ico'],
+    icon=['C:\\Users\\hayde\\OneDrive\\Documents\\Character Valt Root\\icon.ico'],
     contents_directory='.',
 )
 coll = COLLECT(
