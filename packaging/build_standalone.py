@@ -36,9 +36,8 @@ def main() -> None:
         "-m",
         "PyInstaller",
         "--onedir",   # Compile to directory to avoid runtime extraction locks and Defender scans
-        "--contents-directory", ".",  # Flatten: put all files alongside the exe, no _internal subfolder
         "--noconfirm", # Overwrite output directory without confirmation
-        "--windowed", # Hide console window
+        "--console",  # TEMPORARY DIAGNOSTIC MODE: Show console window for debugging hangs
         "--name",
         "Character Vault",
         "--icon",

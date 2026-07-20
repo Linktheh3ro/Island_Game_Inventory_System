@@ -1,17 +1,48 @@
-import os
-import sys
-from pathlib import Path
+import datetime
+
+# Helper function for dual-destination logging (console + files)
+def log_diag(msg: str):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    line = f"[{timestamp}] {msg}"
+    print(line, flush=True)
+
+    # Determine log folder paths
+    targets = []
+    try:
+        if getattr(sys, 'frozen', False):
+            app_dir_logs = Path(sys.executable).parent / "logs"
+        else:
+            app_dir_logs = Path(__file__).parent / "logs"
+        app_dir_logs.mkdir(parents=True, exist_ok=True)
+        targets.append(app_dir_logs / "app_startup.log")
+    except Exception:
+        pass
+
+    try:
+        local_app_logs = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))) / "CharacterVault" / "logs"
+        local_app_logs.mkdir(parents=True, exist_ok=True)
+        targets.append(local_app_logs / "app_startup.log")
+    except Exception:
+        pass
+
+    for t in targets:
+        try:
+            with open(t, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+                f.flush()
+        except Exception:
+            pass
 
 # ============================================================================
 # CHILD PROCESS INTERCEPT: Must be the very first logic check.
 # When this script is re-invoked by subprocess.Popen with "--server <port>",
-# the child must ONLY start the uvicorn server and exit. Without this guard,
-# frozen PyInstaller executables re-execute the entire script including the
-# GUI/subprocess spawn code, causing an infinite fork bomb of new windows.
+# the child must ONLY start the uvicorn server and exit.
 # ============================================================================
 if "--server" in sys.argv:
     _server_idx = sys.argv.index("--server")
     _server_port = int(sys.argv[_server_idx + 1])
+
+    log_diag(f"SERVER CHILD PROCESS STARTED: Port {_server_port}")
 
     # Setup paths for frozen environment
     if getattr(sys, 'frozen', False):
@@ -20,28 +51,29 @@ if "--server" in sys.argv:
         _ROOT = Path(__file__).resolve().parent
     sys.path.insert(0, str(_ROOT))
 
-    # Redirect stdout/stderr for the child server process
-    _LOCAL_APP_DIR = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))) / "CharacterVault"
-    _LOCAL_APP_DIR.mkdir(parents=True, exist_ok=True)
-    _log_file = open(_LOCAL_APP_DIR / "backend_server.log", "w", encoding="utf-8", buffering=1)
-    sys.stdout = _log_file
-    sys.stderr = _log_file
-
-    import uvicorn
-    from backend.server import app
-    uvicorn.run(app, host="127.0.0.1", port=_server_port, log_level="warning")
+    log_diag("SERVER: Importing uvicorn and backend.server...")
+    try:
+        import uvicorn
+        from backend.server import app
+        log_diag("SERVER: Imports successful. Launching uvicorn server...")
+        uvicorn.run(app, host="127.0.0.1", port=_server_port, log_level="info")
+        log_diag("SERVER: uvicorn server finished cleanly.")
+    except Exception as _err:
+        import traceback
+        log_diag(f"SERVER CRASH ERROR: {_err}\n{traceback.format_exc()}")
+        raise _err
     sys.exit(0)
 
 # ============================================================================
 # MAIN GUI PROCESS: Only reached by the initial user-launched instance.
 # ============================================================================
 
-# Redirect stdout and stderr early to capture all startup exceptions and uvicorn logs
 LOCAL_APP_DIR = Path(os.environ.get("LOCALAPPDATA", os.path.expanduser("~\\AppData\\Local"))) / "CharacterVault"
 LOCAL_APP_DIR.mkdir(parents=True, exist_ok=True)
-log_file = open(LOCAL_APP_DIR / "app.log", "w", encoding="utf-8", buffering=1)
-sys.stdout = log_file
-sys.stderr = log_file
+
+log_diag("MAIN: Launcher initialized.")
+log_diag(f"MAIN: sys.executable = {sys.executable}")
+log_diag(f"MAIN: sys.argv = {sys.argv}")
 
 import time
 import socket
@@ -331,11 +363,13 @@ if __name__ == "__main__":
             except Exception as e:
                 print("Error in PID lockfile cleanup:", e)
 
+        log_diag("MAIN: Executing kill_previous_instance check...")
         kill_previous_instance()
 
         port = get_app_port()
+        log_diag(f"MAIN: Allocated port {port} for local FastAPI server.")
         
-        # Start FastAPI server in a separate background child process (prevents Python GIL deadlock unresponsiveness)
+        # Start FastAPI server in a separate child process
         import subprocess
         server_cmd = [sys.executable]
         if not getattr(sys, 'frozen', False):
@@ -348,21 +382,20 @@ if __name__ == "__main__":
             env["_MEIPASS"] = sys._MEIPASS
         env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
 
-        # Child process handles its own log redirection internally via the --server intercept
+        log_diag(f"MAIN: Spawning child server process: {server_cmd}")
+
+        # In diagnostic mode, let child process output print to console
         server_process = subprocess.Popen(
             server_cmd,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            env=env,
-            creationflags=0x08000000 # CREATE_NO_WINDOW: hide child cmd terminal window
+            env=env
         )
         
-        # Poll uvicorn until it starts accepting socket connections (up to 5.0 seconds)
+        log_diag("MAIN: Polling server socket 127.0.0.1...")
         server_ready = False
         for i in range(100):
             time.sleep(0.05)
             if server_process.poll() is not None:
-                # Backend process died prematurely!
+                log_diag(f"MAIN ERROR: Server child process died prematurely with return code {server_process.poll()}!")
                 break
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.05)
@@ -370,11 +403,13 @@ if __name__ == "__main__":
                 s.connect(('127.0.0.1', port))
                 s.close()
                 server_ready = True
+                log_diag(f"MAIN: Connected to server socket on port {port} after {i+1} attempts!")
                 break
             except:
                 pass
 
         if not server_ready:
+            log_diag("MAIN ERROR: Server failed to accept socket connections after 5.0 seconds.")
             # Gather log output to show user why server failed
             server_log_path = LOCAL_APP_DIR / "backend_server.log"
             log_detail = ""
@@ -401,26 +436,26 @@ if __name__ == "__main__":
             sys.exit(1)
 
         # Initialize JS API bridge
+        log_diag("MAIN: Initializing DesktopAPI JS bridge...")
         api = DesktopAPI()
 
         import urllib.parse
         exe_name = Path(sys.executable).stem if getattr(sys, 'frozen', False) else "Character Locker"
-        # Fallback to a cleaner name if it is just a temp file
         if exe_name.startswith("_MEI") or len(exe_name) == 0:
             exe_name = "Character Locker"
             
         quoted_title = urllib.parse.quote("Character Vault")
 
-        # Pre-flight: ensure WebView2 Runtime is installed (silent hang prevention)
+        log_diag("MAIN: Checking WebView2 Runtime installation...")
         if not _ensure_webview2():
-            print("WebView2 Runtime is not available. Exiting.")
+            log_diag("MAIN ERROR: WebView2 Runtime is not available. Exiting.")
             try:
                 server_process.terminate()
             except Exception:
                 pass
             sys.exit(1)
 
-        # Open standalone native window (frameless=False to use native title bar)
+        log_diag("MAIN: Creating webview window...")
         window = webview.create_window(
             "Character Vault",
             f"http://127.0.0.1:{port}?native=true&title={quoted_title}",
@@ -432,22 +467,25 @@ if __name__ == "__main__":
         )
         api._window = window
 
-        # Enable private_mode=False and define storage_path to preserve LocalStorage
         storage_path = str(LOCAL_APP_DIR / ".webview_storage")
         
-        # Remove any stale lock file to prevent WebView2 lock deadlocks
         lock_file = LOCAL_APP_DIR / ".webview_storage" / "EBWebView" / "LOCKfile"
         if lock_file.exists():
+            log_diag("MAIN: Cleaning up stale EBWebView LOCKfile...")
             try:
                 lock_file.unlink()
-            except Exception:
-                pass
+            except Exception as _e:
+                log_diag(f"MAIN WARNING: Could not unlink LOCKfile: {_e}")
 
+        log_diag(f"MAIN: Starting webview.start() with storage_path={storage_path}...")
         try:
             webview.start(
                 private_mode=False,
                 storage_path=storage_path
             )
+            log_diag("MAIN: webview.start() exited normally.")
+        except Exception as start_err:
+            log_diag(f"MAIN ERROR: webview.start() failed: {start_err}")
         except Exception as start_err:
             print("Webview failed to start, likely due to corrupted cache. Attempting recovery deletion...", start_err)
             try:
