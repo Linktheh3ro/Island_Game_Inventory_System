@@ -31,13 +31,23 @@ def main() -> None:
             except Exception as e:
                 print(f"Failed to delete old root exe {old_exe}: {e}")
 
+    # Clean up any leftover backend/.venv to prevent python314.dll dependency leakage into dist
+    backend_venv = backend / ".venv"
+    if backend_venv.exists():
+        try:
+            shutil.rmtree(backend_venv, ignore_errors=True)
+            print("Cleaned up backend/.venv successfully.")
+        except Exception as e:
+            print(f"Warning: Failed to delete backend/.venv: {e}")
+
     subprocess.run([
         sys.executable,
         "-m",
         "PyInstaller",
         "--onedir",   # Compile to directory to avoid runtime extraction locks and Defender scans
+        "--contents-directory", ".",  # Flatten: put all files alongside the exe, no _internal subfolder
         "--noconfirm", # Overwrite output directory without confirmation
-        "--console",  # TEMPORARY DIAGNOSTIC MODE: Show console window for debugging hangs
+        "--windowed", # Native GUI mode
         "--name",
         "Character Vault",
         "--icon",

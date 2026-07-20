@@ -1,10 +1,31 @@
+import os
+import sys
 import datetime
+from pathlib import Path
+
+class DummyStream:
+    def write(self, text):
+        pass
+    def flush(self):
+        pass
+    def isatty(self):
+        return False
+
+# In PyInstaller --windowed mode, sys.stdout and sys.stderr are None.
+# Fix 'NoneType' object has no attribute 'isatty' in uvicorn / logging.
+if sys.stdout is None:
+    sys.stdout = DummyStream()
+if sys.stderr is None:
+    sys.stderr = DummyStream()
 
 # Helper function for dual-destination logging (console + files)
 def log_diag(msg: str):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
     line = f"[{timestamp}] {msg}"
-    print(line, flush=True)
+    try:
+        print(line, flush=True)
+    except Exception:
+        pass
 
     # Determine log folder paths
     targets = []
@@ -56,7 +77,7 @@ if "--server" in sys.argv:
         import uvicorn
         from backend.server import app
         log_diag("SERVER: Imports successful. Launching uvicorn server...")
-        uvicorn.run(app, host="127.0.0.1", port=_server_port, log_level="info")
+        uvicorn.run(app, host="127.0.0.1", port=_server_port, log_level="info", use_colors=False)
         log_diag("SERVER: uvicorn server finished cleanly.")
     except Exception as _err:
         import traceback
@@ -91,9 +112,6 @@ else:
 
 # Make sure path is inserted early so Python can find uvicorn and app
 sys.path.insert(0, str(ROOT))
-
-# Now import the backend app
-from backend.server import app
 
 # Main initialization starts below
 
