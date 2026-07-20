@@ -72,14 +72,25 @@ pyi_splash = None
 
 # ── WebView2 Runtime Detection & Auto-Install ────────────────────────
 def _check_webview2_installed():
-    """Check if Microsoft Edge WebView2 Runtime is installed via registry."""
+    """Check if WebView2 is available — either via the standalone runtime OR Microsoft Edge (Chromium).
+    
+    WebView2 works if ANY of these are present:
+    1. Standalone WebView2 Runtime (registered in EdgeUpdate registry)
+    2. Microsoft Edge Chromium (bundles WebView2 internally)
+    3. Edge executable found on disk
+    """
     try:
         import winreg
-        # Check both per-user and per-machine installation paths
+        # GUIDs for EdgeUpdate client registration
         reg_paths = [
+            # Standalone WebView2 Runtime
             (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BEB-EB81BBE09C0B}"),
             (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BEB-EB81BBE09C0B}"),
             (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BEB-EB81BBE09C0B}"),
+            # Microsoft Edge Stable (Chromium-based — includes WebView2)
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}"),
+            (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}"),
+            (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\EdgeUpdate\Clients\{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}"),
         ]
         for hive, key_path in reg_paths:
             try:
@@ -91,10 +102,31 @@ def _check_webview2_installed():
                 continue
             except Exception:
                 continue
-        return False
+
+        # Fallback: check if Edge is registered in App Paths
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\msedge.exe") as key:
+                edge_path, _ = winreg.QueryValueEx(key, "")
+                if edge_path and Path(edge_path).exists():
+                    return True
+        except Exception:
+            pass
+
     except Exception:
-        # If we can't check (e.g., not on Windows), assume it's fine
+        # If we can't check registry at all (not on Windows), assume it's fine
         return True
+
+    # Final fallback: check common Edge install locations on disk
+    edge_paths = [
+        Path(os.environ.get("PROGRAMFILES", "C:\\Program Files")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+        Path(os.environ.get("PROGRAMFILES(X86)", "C:\\Program Files (x86)")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+        Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "Edge" / "Application" / "msedge.exe",
+    ]
+    for ep in edge_paths:
+        if ep.exists():
+            return True
+
+    return False
 
 def _show_message_box(title, message, style=0x00000040):
     """Show a native Windows MessageBox (doesn't require tkinter or webview)."""
@@ -326,16 +358,47 @@ if __name__ == "__main__":
         )
         
         # Poll uvicorn until it starts accepting socket connections (up to 5.0 seconds)
+        server_ready = False
         for i in range(100):
             time.sleep(0.05)
+            if server_process.poll() is not None:
+                # Backend process died prematurely!
+                break
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.05)
             try:
                 s.connect(('127.0.0.1', port))
                 s.close()
+                server_ready = True
                 break
             except:
                 pass
+
+        if not server_ready:
+            # Gather log output to show user why server failed
+            server_log_path = LOCAL_APP_DIR / "backend_server.log"
+            log_detail = ""
+            if server_log_path.exists():
+                try:
+                    lines = server_log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+                    log_detail = "\n".join(lines[-15:])
+                except Exception:
+                    pass
+            if not log_detail:
+                log_detail = f"Server child process exited with code {server_process.poll()}."
+
+            _show_message_box(
+                "Character Vault — Backend Startup Error",
+                "The background server process failed to start or was blocked.\n\n"
+                f"Log Summary:\n{log_detail}\n\n"
+                "Please check if your antivirus software is blocking the application.",
+                0x00000010  # MB_ICONERROR
+            )
+            try:
+                server_process.terminate()
+            except Exception:
+                pass
+            sys.exit(1)
 
         # Initialize JS API bridge
         api = DesktopAPI()
@@ -371,6 +434,15 @@ if __name__ == "__main__":
 
         # Enable private_mode=False and define storage_path to preserve LocalStorage
         storage_path = str(LOCAL_APP_DIR / ".webview_storage")
+        
+        # Remove any stale lock file to prevent WebView2 lock deadlocks
+        lock_file = LOCAL_APP_DIR / ".webview_storage" / "EBWebView" / "LOCKfile"
+        if lock_file.exists():
+            try:
+                lock_file.unlink()
+            except Exception:
+                pass
+
         try:
             webview.start(
                 private_mode=False,
