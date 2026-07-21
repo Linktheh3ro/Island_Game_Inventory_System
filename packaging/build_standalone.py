@@ -61,6 +61,18 @@ def main() -> None:
         str(PROJECT_ROOT / "standalone.py"),
     ], check=True)
 
+    # Generate Character Vault.exe.config to allow loading remote / downloaded .NET assemblies without CAS security block
+    config_content = """<?xml version="1.0" encoding="utf-8" ?>
+<configuration>
+  <runtime>
+    <loadFromRemoteSources enabled="true"/>
+  </runtime>
+</configuration>
+"""
+    app_dir = output_dir / "Character Vault"
+    exe_config = app_dir / "Character Vault.exe.config"
+    exe_config.write_text(config_content, encoding="utf-8")
+
     # Create root level shortcuts pointing to the dist folder executable
     try:
         target_exe = output_dir / "Character Vault" / "Character Vault.exe"

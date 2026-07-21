@@ -24,6 +24,20 @@ if getattr(sys, 'frozen', False):
             os.environ["PYTHONNET_PYDLL"] = str(cand)
             break
 
+    # Unblock all app DLLs/EXEs from Windows Zone.Identifier (Mark of the Web)
+    # which causes .NET Framework CAS security to block loading untrusted assemblies
+    try:
+        for _f in _APP_DIR.rglob("*"):
+            if _f.is_file():
+                _zi = Path(str(_f) + ":Zone.Identifier")
+                if _zi.exists():
+                    try:
+                        _zi.unlink()
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
 # Force pythonnet to use standard Windows .NET Framework (netfx) pre-installed on all Windows 10/11 machines.
 os.environ['PYTHONNET_RUNTIME'] = 'netfx'
 
