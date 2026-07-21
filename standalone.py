@@ -1,7 +1,21 @@
 import os
 import sys
 import datetime
+import ctypes
 from pathlib import Path
+
+# Add executable directory to PATH and Windows DLL Search directory so ClrLoader / Python.Runtime.dll can resolve python311.dll
+if getattr(sys, 'frozen', False):
+    _APP_DIR = str(Path(sys.executable).parent.resolve())
+    os.environ["PATH"] = _APP_DIR + os.pathsep + os.environ.get("PATH", "")
+    try:
+        os.add_dll_directory(_APP_DIR)
+    except Exception:
+        pass
+    try:
+        ctypes.windll.kernel32.SetDllDirectoryW(_APP_DIR)
+    except Exception:
+        pass
 
 # Force pythonnet to use standard Windows .NET Framework (netfx) pre-installed on all Windows 10/11 machines.
 # Prevents 'Failed to resolve Python.Runtime.Loader.Initialize' on systems without .NET 6+ Desktop Runtime.
