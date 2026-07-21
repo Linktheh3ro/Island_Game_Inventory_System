@@ -3,6 +3,10 @@ import sys
 import datetime
 from pathlib import Path
 
+# Force pythonnet to use standard Windows .NET Framework (netfx) pre-installed on all Windows 10/11 machines.
+# Prevents 'Failed to resolve Python.Runtime.Loader.Initialize' on systems without .NET 6+ Desktop Runtime.
+os.environ['PYTHONNET_RUNTIME'] = 'netfx'
+
 class DummyStream:
     def write(self, text):
         pass
