@@ -119,6 +119,56 @@ sys.path.insert(0, str(ROOT))
 
 # Main initialization starts below
 
+# ── .NET / pythonnet Runtime Initialization ───────────────────────────
+# pythonnet 3.x needs a .NET runtime. We try netfx (built-in on all Windows)
+# first, then fall back to coreclr (.NET 6+). This MUST happen before
+# 'import webview' since webview/platforms/winforms.py does 'import clr'.
+def _detect_dotnet_framework_version():
+    """Detect installed .NET Framework version from registry."""
+    try:
+        import winreg
+        key = winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                             r"SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full")
+        release, _ = winreg.QueryValueEx(key, "Release")
+        winreg.CloseKey(key)
+        # Map release keys to version strings
+        if release >= 533320: return f"4.8.1 (release {release})"
+        if release >= 528040: return f"4.8 (release {release})"
+        if release >= 461808: return f"4.7.2 (release {release})"
+        if release >= 461308: return f"4.7.1 (release {release})"
+        if release >= 460798: return f"4.7 (release {release})"
+        if release >= 394802: return f"4.6.2 (release {release})"
+        if release >= 394254: return f"4.6.1 (release {release})"
+        if release >= 393295: return f"4.6 (release {release})"
+        if release >= 379893: return f"4.5.2 (release {release})"
+        if release >= 378675: return f"4.5.1 (release {release})"
+        if release >= 378389: return f"4.5 (release {release})"
+        return f"Unknown 4.x (release {release})"
+    except Exception as e:
+        return f"Not detected ({e})"
+
+dotnet_ver = _detect_dotnet_framework_version()
+log_diag(f"MAIN: .NET Framework version: {dotnet_ver}")
+
+try:
+    import pythonnet
+    # Try netfx first (built-in on all Windows 10/11)
+    try:
+        log_diag("MAIN: Attempting pythonnet.load('netfx')...")
+        pythonnet.load("netfx")
+        log_diag("MAIN: pythonnet loaded with netfx successfully.")
+    except Exception as netfx_err:
+        log_diag(f"MAIN: netfx failed: {netfx_err}")
+        # Fall back to coreclr (.NET 6+ Desktop Runtime)
+        try:
+            log_diag("MAIN: Attempting pythonnet.load('coreclr')...")
+            pythonnet.load("coreclr")
+            log_diag("MAIN: pythonnet loaded with coreclr successfully.")
+        except Exception as coreclr_err:
+            log_diag(f"MAIN: coreclr also failed: {coreclr_err}")
+            log_diag("MAIN: WARNING - Both .NET runtimes failed. webview may not work.")
+except Exception as pn_err:
+    log_diag(f"MAIN: pythonnet initialization error: {pn_err}")
 
 import webview
 
