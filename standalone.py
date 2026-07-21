@@ -6,19 +6,25 @@ from pathlib import Path
 
 # Add executable directory to PATH and Windows DLL Search directory so ClrLoader / Python.Runtime.dll can resolve python311.dll
 if getattr(sys, 'frozen', False):
-    _APP_DIR = str(Path(sys.executable).parent.resolve())
-    os.environ["PATH"] = _APP_DIR + os.pathsep + os.environ.get("PATH", "")
+    _APP_DIR = Path(sys.executable).parent.resolve()
+    os.environ["PATH"] = str(_APP_DIR) + os.pathsep + os.environ.get("PATH", "")
     try:
-        os.add_dll_directory(_APP_DIR)
+        os.add_dll_directory(str(_APP_DIR))
     except Exception:
         pass
     try:
-        ctypes.windll.kernel32.SetDllDirectoryW(_APP_DIR)
+        ctypes.windll.kernel32.SetDllDirectoryW(str(_APP_DIR))
     except Exception:
         pass
 
+    # Explicitly set PYTHONNET_PYDLL so Python.Runtime.dll knows where python311.dll is located
+    for dll_name in [f"python{sys.version_info.major}{sys.version_info.minor}.dll", "python3.dll"]:
+        cand = _APP_DIR / dll_name
+        if cand.exists():
+            os.environ["PYTHONNET_PYDLL"] = str(cand)
+            break
+
 # Force pythonnet to use standard Windows .NET Framework (netfx) pre-installed on all Windows 10/11 machines.
-# Prevents 'Failed to resolve Python.Runtime.Loader.Initialize' on systems without .NET 6+ Desktop Runtime.
 os.environ['PYTHONNET_RUNTIME'] = 'netfx'
 
 class DummyStream:
@@ -571,21 +577,17 @@ if __name__ == "__main__":
             )
             log_diag("MAIN: webview.start() exited normally.")
         except Exception as start_err:
-            log_diag(f"MAIN ERROR: webview.start() failed: {start_err}")
-        except Exception as start_err:
-            print("Webview failed to start, likely due to corrupted cache. Attempting recovery deletion...", start_err)
+            log_diag(f"MAIN ERROR: Native pywebview GUI window failed: {start_err}")
+            log_diag("MAIN: Launching fallback in default web browser...")
             try:
-                import shutil
-                shutil.rmtree(storage_path, ignore_errors=True)
-                time.sleep(0.5)
-                # Retry starting webview
-                webview.start(
-                    private_mode=False,
-                    storage_path=storage_path
-                )
-            except Exception as retry_err:
-                print("Recovery failed:", retry_err)
-                raise retry_err
+                import webbrowser
+                app_url = f"http://127.0.0.1:{port}?native=true&title={quoted_title}"
+                webbrowser.open(app_url)
+                log_diag(f"MAIN: Application opened in default browser ({app_url}).")
+                # Wait for child server process to keep launcher alive while browser is open
+                server_process.wait()
+            except Exception as browser_err:
+                log_diag(f"MAIN ERROR: Browser fallback also failed: {browser_err}")
 
         # Clean up backend server child process gracefully on window exit
         try:
